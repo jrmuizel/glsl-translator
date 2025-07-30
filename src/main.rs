@@ -4,6 +4,7 @@ use glsl_lang::parse::Parsable;
 mod simple_type_checker;
 use simple_type_checker::SimpleTypeChecker;
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     println!("GLSL Parser and Type Checker Example");
     println!("====================================");
@@ -12,16 +13,16 @@ fn main() {
     let test_cases = vec![
         (
             "Simple vertex shader",
-            r#"
+            r"
             void main() {
                 float x = 5.0;
                 gl_Position = vec4(x, 0.0, 0.0, 1.0);
             }
-        "#,
+        ",
         ),
         (
             "Function with variables",
-            r#"
+            r"
             float square(float x) {
                 return x * x;
             }
@@ -30,31 +31,31 @@ fn main() {
                 float result = square(5.0);
                 float y = result + 1.0;
             }
-        "#,
+        ",
         ),
         (
             "Vector operations",
-            r#"
+            r"
             void main() {
                 vec3 a = vec3(1.0, 2.0, 3.0);
                 vec3 b = vec3(4.0, 5.0, 6.0);
                 float dot_product = dot(a, b);
                 vec3 normalized = normalize(a);
             }
-        "#,
+        ",
         ),
         (
             "Type error example",
-            r#"
+            r"
             void main() {
                 float x = 5.0;
                 bool y = x;  // This should cause a type error
             }
-        "#,
+        ",
         ),
         (
             "Arithmetic operations",
-            r#"
+            r"
             void main() {
                 int a = 5;
                 int b = 10;
@@ -62,14 +63,14 @@ fn main() {
                 float f = 3.14;
                 float product = f * 2.0;
             }
-        "#,
+        ",
         ),
     ];
 
     for (name, glsl_code) in test_cases {
-        println!("\n--- Testing: {} ---", name);
+        println!("\n--- Testing: {name} ---");
         println!("GLSL Code:");
-        println!("{}", glsl_code);
+        println!("{glsl_code}");
 
         // Parse the GLSL source code
         match ast::TranslationUnit::parse(glsl_code) {
@@ -91,7 +92,7 @@ fn main() {
                                 println!("  - No global variables found");
                             } else {
                                 for (name, ty) in global_scope {
-                                    println!("  - Variable '{}': {}", name, ty);
+                                    println!("  - Variable '{name}': {ty}");
                                 }
                             }
                         }
@@ -99,13 +100,13 @@ fn main() {
                     Err(errors) => {
                         println!("❌ Type checking failed with {} error(s):", errors.len());
                         for error in errors {
-                            println!("  • {}", error);
+                            println!("  • {error}");
                         }
                     }
                 }
             }
             Err(err) => {
-                println!("❌ Failed to parse GLSL: {:?}", err);
+                println!("❌ Failed to parse GLSL: {err:?}");
             }
         }
 

@@ -76,18 +76,18 @@ impl fmt::Display for GLSLType {
             GLSLType::Mat2 => write!(f, "mat2"),
             GLSLType::Mat3 => write!(f, "mat3"),
             GLSLType::Mat4 => write!(f, "mat4"),
-            GLSLType::Array(ty, Some(size)) => write!(f, "{}[{}]", ty, size),
-            GLSLType::Array(ty, None) => write!(f, "{}[]", ty),
-            GLSLType::Struct(name, _) => write!(f, "struct {}", name),
+            GLSLType::Array(ty, Some(size)) => write!(f, "{ty}[{size}]"),
+            GLSLType::Array(ty, None) => write!(f, "{ty}[]"),
+            GLSLType::Struct(name, _) => write!(f, "struct {name}"),
             GLSLType::Function(ret, params) => {
                 write!(f, "function(")?;
                 for (i, param) in params.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", param)?;
+                    write!(f, "{param}")?;
                 }
-                write!(f, ") -> {}", ret)
+                write!(f, ") -> {ret}")
             }
             GLSLType::Unknown => write!(f, "<unknown>"),
         }
@@ -96,6 +96,7 @@ impl fmt::Display for GLSLType {
 
 impl GLSLType {
     /// Check if this type is a scalar type
+    #[must_use]
     pub fn is_scalar(&self) -> bool {
         matches!(
             self,
@@ -104,6 +105,7 @@ impl GLSLType {
     }
 
     /// Check if this type is a vector type
+    #[must_use]
     pub fn is_vector(&self) -> bool {
         matches!(
             self,
@@ -126,11 +128,13 @@ impl GLSLType {
     }
 
     /// Check if this type is a matrix type
+    #[must_use]
     pub fn is_matrix(&self) -> bool {
         matches!(self, GLSLType::Mat2 | GLSLType::Mat3 | GLSLType::Mat4)
     }
 
     /// Check if this type is numeric (can be used in arithmetic operations)
+    #[must_use]
     pub fn is_numeric(&self) -> bool {
         match self {
             // Bool types (scalar and vector) are not numeric
@@ -142,6 +146,7 @@ impl GLSLType {
 
     /// Get the component count for vectors and matrices
     #[allow(dead_code)] // Used in tests
+    #[must_use]
     pub fn component_count(&self) -> Option<usize> {
         match self {
             GLSLType::Vec2
@@ -158,8 +163,8 @@ impl GLSLType {
             | GLSLType::BVec4
             | GLSLType::IVec4
             | GLSLType::UVec4
-            | GLSLType::DVec4 => Some(4),
-            GLSLType::Mat2 => Some(4),
+            | GLSLType::DVec4
+            | GLSLType::Mat2 => Some(4),
             GLSLType::Mat3 => Some(9),
             GLSLType::Mat4 => Some(16),
             _ => None,
@@ -168,47 +173,48 @@ impl GLSLType {
 
     /// Get the base scalar type for vectors and matrices
     #[allow(dead_code)] // Used in tests
+    #[must_use]
     pub fn base_type(&self) -> Option<GLSLType> {
         match self {
-            GLSLType::Vec2 | GLSLType::Vec3 | GLSLType::Vec4 => Some(GLSLType::Float),
+            GLSLType::Vec2 | GLSLType::Vec3 | GLSLType::Vec4 | GLSLType::Mat2 | GLSLType::Mat3 | GLSLType::Mat4 => Some(GLSLType::Float),
             GLSLType::BVec2 | GLSLType::BVec3 | GLSLType::BVec4 => Some(GLSLType::Bool),
             GLSLType::IVec2 | GLSLType::IVec3 | GLSLType::IVec4 => Some(GLSLType::Int),
             GLSLType::UVec2 | GLSLType::UVec3 | GLSLType::UVec4 => Some(GLSLType::UInt),
             GLSLType::DVec2 | GLSLType::DVec3 | GLSLType::DVec4 => Some(GLSLType::Double),
-            GLSLType::Mat2 | GLSLType::Mat3 | GLSLType::Mat4 => Some(GLSLType::Float),
             _ => None,
         }
     }
 
     /// Check if two types are compatible for assignment or comparison
+    #[must_use]
     pub fn is_compatible_with(&self, other: &GLSLType) -> bool {
         if self == other {
             return true;
         }
 
         // Allow implicit conversions
+        #[allow(clippy::unnested_or_patterns)]
         match (self, other) {
-            // int to uint, int/uint to float, int/uint/float to double
-            (GLSLType::UInt, GLSLType::Int) => true,
-            (GLSLType::Float, GLSLType::Int) | (GLSLType::Float, GLSLType::UInt) => true,
-            (GLSLType::Double, GLSLType::Int)
+            // Scalar type conversions: int to uint, int/uint to float, int/uint/float to double
+            (GLSLType::UInt, GLSLType::Int)
+            | (GLSLType::Float, GLSLType::Int) | (GLSLType::Float, GLSLType::UInt)
+            | (GLSLType::Double, GLSLType::Int)
             | (GLSLType::Double, GLSLType::UInt)
-            | (GLSLType::Double, GLSLType::Float) => true,
-
+            | (GLSLType::Double, GLSLType::Float)
             // Vector conversions follow the same rules
-            (GLSLType::UVec2, GLSLType::IVec2)
+            | (GLSLType::UVec2, GLSLType::IVec2)
             | (GLSLType::UVec3, GLSLType::IVec3)
-            | (GLSLType::UVec4, GLSLType::IVec4) => true,
-            (GLSLType::Vec2, GLSLType::IVec2) | (GLSLType::Vec2, GLSLType::UVec2) => true,
-            (GLSLType::Vec3, GLSLType::IVec3) | (GLSLType::Vec3, GLSLType::UVec3) => true,
-            (GLSLType::Vec4, GLSLType::IVec4) | (GLSLType::Vec4, GLSLType::UVec4) => true,
-            (GLSLType::DVec2, GLSLType::IVec2)
+            | (GLSLType::UVec4, GLSLType::IVec4)
+            | (GLSLType::Vec2, GLSLType::IVec2) | (GLSLType::Vec2, GLSLType::UVec2)
+            | (GLSLType::Vec3, GLSLType::IVec3) | (GLSLType::Vec3, GLSLType::UVec3)
+            | (GLSLType::Vec4, GLSLType::IVec4) | (GLSLType::Vec4, GLSLType::UVec4)
+            | (GLSLType::DVec2, GLSLType::IVec2)
             | (GLSLType::DVec2, GLSLType::UVec2)
-            | (GLSLType::DVec2, GLSLType::Vec2) => true,
-            (GLSLType::DVec3, GLSLType::IVec3)
+            | (GLSLType::DVec2, GLSLType::Vec2)
+            | (GLSLType::DVec3, GLSLType::IVec3)
             | (GLSLType::DVec3, GLSLType::UVec3)
-            | (GLSLType::DVec3, GLSLType::Vec3) => true,
-            (GLSLType::DVec4, GLSLType::IVec4)
+            | (GLSLType::DVec3, GLSLType::Vec3)
+            | (GLSLType::DVec4, GLSLType::IVec4)
             | (GLSLType::DVec4, GLSLType::UVec4)
             | (GLSLType::DVec4, GLSLType::Vec4) => true,
 
@@ -253,6 +259,7 @@ impl Default for SymbolTable {
 }
 
 impl SymbolTable {
+    #[must_use]
     pub fn new() -> Self {
         let mut table = Self {
             scopes: vec![HashMap::new()], // Global scope
@@ -274,12 +281,16 @@ impl SymbolTable {
         }
     }
 
+    /// Declares a variable in the current scope.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns an error if a variable with the same name is already declared in the current scope.
     pub fn declare_variable(&mut self, name: String, ty: GLSLType) -> Result<(), String> {
         if let Some(current_scope) = self.scopes.last_mut() {
             if current_scope.contains_key(&name) {
                 return Err(format!(
-                    "Variable '{}' already declared in current scope",
-                    name
+                    "Variable '{name}' already declared in current scope"
                 ));
             }
             current_scope.insert(name, ty);
@@ -289,6 +300,7 @@ impl SymbolTable {
         }
     }
 
+    #[must_use]
     pub fn lookup_variable(&self, name: &str) -> Option<&GLSLType> {
         for scope in self.scopes.iter().rev() {
             if let Some(ty) = scope.get(name) {
@@ -303,6 +315,7 @@ impl SymbolTable {
     }
 
     #[allow(dead_code)] // Used in tests
+    #[must_use]
     pub fn lookup_function(&self, name: &str) -> Option<&GLSLType> {
         self.functions.get(name)
     }
@@ -379,6 +392,7 @@ impl Default for SimpleTypeChecker {
 }
 
 impl SimpleTypeChecker {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             symbol_table: SymbolTable::new(),
@@ -386,6 +400,11 @@ impl SimpleTypeChecker {
         }
     }
 
+    /// Performs type checking on a translation unit.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns a vector of type errors if any type checking violations are found.
     pub fn check_translation_unit(
         &mut self,
         unit: &ast::TranslationUnit,
@@ -411,21 +430,18 @@ impl SimpleTypeChecker {
 
     fn check_external_declaration(&mut self, decl: &Node<ast::ExternalDeclarationData>) {
         match &decl.content {
-            ast::ExternalDeclarationData::Declaration(_) => {
-                // Skip declarations for now
+            ast::ExternalDeclarationData::Declaration(_) | ast::ExternalDeclarationData::Preprocessor(_) => {
+                // Skip declarations and preprocessor directives for now
             }
             ast::ExternalDeclarationData::FunctionDefinition(node) => {
                 self.check_function_definition(&node.content);
-            }
-            ast::ExternalDeclarationData::Preprocessor(_) => {
-                // Skip preprocessor directives
             }
         }
     }
 
     fn check_function_definition(&mut self, func_def: &ast::FunctionDefinitionData) {
         let return_type =
-            self.get_type_from_type_specifier(&func_def.prototype.content.ty.content.ty.content);
+            Self::get_type_from_type_specifier(&func_def.prototype.content.ty.content.ty.content);
 
         // Enter function scope
         self.symbol_table.enter_scope();
@@ -471,18 +487,15 @@ impl SimpleTypeChecker {
     }
 
     fn check_declaration(&mut self, decl: &ast::DeclarationData) {
-        match decl {
-            ast::DeclarationData::InitDeclaratorList(node) => {
-                self.check_init_declarator_list(&node.content);
-            }
-            _ => {
-                // Handle other declaration types
-            }
+        if let ast::DeclarationData::InitDeclaratorList(node) = decl {
+            self.check_init_declarator_list(&node.content);
+        } else {
+            // Handle other declaration types
         }
     }
 
     fn check_init_declarator_list(&mut self, list: &ast::InitDeclaratorListData) {
-        let base_type = self.get_type_from_fully_specified_type(&list.head.content.ty.content);
+        let base_type = Self::get_type_from_fully_specified_type(&list.head.content.ty.content);
 
         // Check the first declarator
         if let Some(name) = &list.head.content.name {
@@ -500,8 +513,7 @@ impl SimpleTypeChecker {
                 let init_type = self.check_initializer(&initializer.content);
                 if !base_type.is_compatible_with(&init_type) {
                     self.error(format!(
-                        "Cannot initialize variable of type '{}' with value of type '{}'",
-                        base_type, init_type
+                        "Cannot initialize variable of type '{base_type}' with value of type '{init_type}'"
                     ));
                 }
             }
@@ -525,7 +537,7 @@ impl SimpleTypeChecker {
                 if let Some(ty) = self.symbol_table.lookup_variable(name) {
                     ty.clone()
                 } else {
-                    self.error(format!("Undefined variable '{}'", name));
+                    self.error(format!("Undefined variable '{name}'"));
                     GLSLType::Unknown
                 }
             }
@@ -535,7 +547,7 @@ impl SimpleTypeChecker {
             ast::ExprData::FloatConst(_) => GLSLType::Float,
             ast::ExprData::DoubleConst(_) => GLSLType::Double,
 
-            ast::ExprData::FunCall(fun, args) => self.check_function_call(fun, args),
+            ast::ExprData::FunCall(fun, args) => Self::check_function_call(fun, args),
 
             ast::ExprData::Binary(op, left, right) => {
                 let left_type = self.check_expression(&left.content);
@@ -548,7 +560,7 @@ impl SimpleTypeChecker {
                 let right_type = self.check_expression(&right.content);
 
                 if !left_type.is_compatible_with(&right_type) {
-                    self.error(format!("Cannot assign '{}' to '{}'", right_type, left_type));
+                    self.error(format!("Cannot assign '{right_type}' to '{left_type}'"));
                 }
 
                 left_type
@@ -561,11 +573,11 @@ impl SimpleTypeChecker {
         }
     }
 
-    fn check_function_call(&mut self, fun: &ast::FunIdentifier, _args: &[ast::Expr]) -> GLSLType {
+    fn check_function_call(fun: &ast::FunIdentifier, _args: &[ast::Expr]) -> GLSLType {
         match &fun.content {
             ast::FunIdentifierData::TypeSpecifier(type_spec) => {
                 // Constructor call - get the type from the type specifier
-                self.get_type_from_type_specifier(&type_spec.content)
+                Self::get_type_from_type_specifier(&type_spec.content)
             }
             ast::FunIdentifierData::Expr(_expr) => {
                 // Function call through expression - simplified handling
@@ -580,7 +592,7 @@ impl SimpleTypeChecker {
         left: &GLSLType,
         right: &GLSLType,
     ) -> GLSLType {
-        use ast::BinaryOpData::*;
+        use ast::BinaryOpData::{Add, And, Div, Equal, Gt, Gte, Lt, Lte, Mult, NonEqual, Or, Sub, Xor};
 
         match op {
             Or | Xor | And => {
@@ -592,7 +604,7 @@ impl SimpleTypeChecker {
 
             Equal | NonEqual => {
                 if !left.is_compatible_with(right) && !right.is_compatible_with(left) {
-                    self.error(format!("Cannot compare types '{}' and '{}'", left, right));
+                    self.error(format!("Cannot compare types '{left}' and '{right}'"));
                 }
                 GLSLType::Bool
             }
@@ -626,11 +638,11 @@ impl SimpleTypeChecker {
         }
     }
 
-    fn get_type_from_fully_specified_type(&self, spec: &ast::FullySpecifiedTypeData) -> GLSLType {
-        self.get_type_from_type_specifier(&spec.ty.content)
+    fn get_type_from_fully_specified_type(spec: &ast::FullySpecifiedTypeData) -> GLSLType {
+        Self::get_type_from_type_specifier(&spec.ty.content)
     }
 
-    fn get_type_from_type_specifier(&self, spec: &ast::TypeSpecifierData) -> GLSLType {
+    fn get_type_from_type_specifier(spec: &ast::TypeSpecifierData) -> GLSLType {
         match &spec.ty.content {
             ast::TypeSpecifierNonArrayData::Void => GLSLType::Void,
             ast::TypeSpecifierNonArrayData::Bool => GLSLType::Bool,
