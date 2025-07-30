@@ -7,17 +7,21 @@ use simple_type_checker::SimpleTypeChecker;
 fn main() {
     println!("GLSL Parser and Type Checker Example");
     println!("====================================");
-    
+
     // Test cases with different GLSL code examples
     let test_cases = vec![
-        ("Simple vertex shader", r#"
+        (
+            "Simple vertex shader",
+            r#"
             void main() {
                 float x = 5.0;
                 gl_Position = vec4(x, 0.0, 0.0, 1.0);
             }
-        "#),
-        
-        ("Function with variables", r#"
+        "#,
+        ),
+        (
+            "Function with variables",
+            r#"
             float square(float x) {
                 return x * x;
             }
@@ -26,25 +30,31 @@ fn main() {
                 float result = square(5.0);
                 float y = result + 1.0;
             }
-        "#),
-        
-        ("Vector operations", r#"
+        "#,
+        ),
+        (
+            "Vector operations",
+            r#"
             void main() {
                 vec3 a = vec3(1.0, 2.0, 3.0);
                 vec3 b = vec3(4.0, 5.0, 6.0);
                 float dot_product = dot(a, b);
                 vec3 normalized = normalize(a);
             }
-        "#),
-        
-        ("Type error example", r#"
+        "#,
+        ),
+        (
+            "Type error example",
+            r#"
             void main() {
                 float x = 5.0;
                 bool y = x;  // This should cause a type error
             }
-        "#),
-        
-        ("Arithmetic operations", r#"
+        "#,
+        ),
+        (
+            "Arithmetic operations",
+            r#"
             void main() {
                 int a = 5;
                 int b = 10;
@@ -52,26 +62,27 @@ fn main() {
                 float f = 3.14;
                 float product = f * 2.0;
             }
-        "#),
+        "#,
+        ),
     ];
-    
+
     for (name, glsl_code) in test_cases {
         println!("\n--- Testing: {} ---", name);
         println!("GLSL Code:");
         println!("{}", glsl_code);
-        
+
         // Parse the GLSL source code
         match ast::TranslationUnit::parse(glsl_code) {
             Ok(translation_unit) => {
                 println!("✓ Parsing successful");
-                
+
                 // Create a type checker and check the AST
                 let mut type_checker = SimpleTypeChecker::new();
-                
+
                 match type_checker.check_translation_unit(&translation_unit) {
                     Ok(()) => {
                         println!("✓ Type checking passed");
-                        
+
                         // Print some information about discovered symbols
                         println!("📊 Symbol table summary:");
                         if !type_checker.symbol_table.scopes.is_empty() {
@@ -97,10 +108,10 @@ fn main() {
                 println!("❌ Failed to parse GLSL: {:?}", err);
             }
         }
-        
+
         println!("{}", "=".repeat(50));
     }
-    
+
     println!("\nType Checker Features Demonstrated:");
     println!("• Basic GLSL type system (float, int, bool, vec3, vec4, etc.)");
     println!("• Variable declaration and initialization checking");
