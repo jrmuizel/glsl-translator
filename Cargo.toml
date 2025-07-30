@@ -5,3 +5,7 @@ edition = "2021"
 
 [dependencies]
 glsl-lang = { version = "0.6", features = ["lexer-v2-min"] }
+
+[[bin]]
+name = "glsl-project"
+path = "src/main.rs"
