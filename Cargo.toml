@@ -1,0 +1,7 @@
+[package]
+name = "glsl-project"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+glsl-lang = { version = "0.6", features = ["lexer-v2-min"] }
