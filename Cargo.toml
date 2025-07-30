@@ -3,8 +3,15 @@ name = "glsl-project"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "glsl_project"
+path = "src/lib.rs"
+
 [dependencies]
 glsl-lang = { version = "0.6", features = ["lexer-v2-min"] }
+
+[dev-dependencies]
+# No additional dependencies needed for basic testing
 
 [[bin]]
 name = "glsl-project"
