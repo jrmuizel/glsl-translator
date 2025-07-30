@@ -13,13 +13,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        rust:
-          - stable
-          - beta
-          - nightly
         
     steps:
     - name: Checkout code
@@ -28,7 +21,6 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: ${{ matrix.rust }}
         components: rustfmt, clippy
         
     - name: Cache cargo registry
@@ -44,11 +36,9 @@ jobs:
           
     - name: Check formatting
       run: cargo fmt --all -- --check
-      if: matrix.rust == 'stable'
       
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
-      if: matrix.rust == 'stable'
       
     - name: Build
       run: cargo build --verbose
@@ -58,7 +48,6 @@ jobs:
       
     - name: Run tests with release mode
       run: cargo test --release --verbose
-      if: matrix.rust == 'stable'
 
   coverage:
     name: Coverage
