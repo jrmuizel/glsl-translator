@@ -168,11 +168,11 @@ mod tests {
 
     #[test]
     fn test_type_checker_simple_function() {
-        let glsl_code = r#"
+        let glsl_code = r"
             void main() {
                 float x = 5.0;
             }
-        "#;
+        ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
         let mut type_checker = SimpleTypeChecker::new();
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_type_checker_arithmetic_operations() {
-        let glsl_code = r#"
+        let glsl_code = r"
             void main() {
                 int a = 5;
                 int b = 10;
@@ -193,7 +193,7 @@ mod tests {
                 float f = 3.14;
                 float product = f * 2.0;
             }
-        "#;
+        ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
         let mut type_checker = SimpleTypeChecker::new();
@@ -205,14 +205,14 @@ mod tests {
 
     #[test]
     fn test_type_checker_vector_operations() {
-        let glsl_code = r#"
+        let glsl_code = r"
             void main() {
                 vec3 a = vec3(1.0, 2.0, 3.0);
                 vec3 b = vec3(4.0, 5.0, 6.0);
                 float dot_product = dot(a, b);
                 vec3 normalized = normalize(a);
             }
-        "#;
+        ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
         let mut type_checker = SimpleTypeChecker::new();
@@ -220,7 +220,7 @@ mod tests {
         let result = type_checker.check_translation_unit(&translation_unit);
         if let Err(errors) = &result {
             for error in errors {
-                println!("Error: {}", error);
+                println!("Error: {error}");
             }
         }
         // Note: This might fail due to simplified type checker not handling all vector operations
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_type_checker_function_definition() {
-        let glsl_code = r#"
+        let glsl_code = r"
             float square(float x) {
                 return x * x;
             }
@@ -237,7 +237,7 @@ mod tests {
             void main() {
                 float result = square(5.0);
             }
-        "#;
+        ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
         let mut type_checker = SimpleTypeChecker::new();
@@ -250,12 +250,12 @@ mod tests {
 
     #[test]
     fn test_type_checker_type_errors() {
-        let glsl_code = r#"
+        let glsl_code = r"
             void main() {
                 float x = 5.0;
                 bool y = x;  // This should cause a type error
             }
-        "#;
+        ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
         let mut type_checker = SimpleTypeChecker::new();
@@ -263,13 +263,13 @@ mod tests {
         let result = type_checker.check_translation_unit(&translation_unit);
         // This might pass in the simplified checker, but demonstrates error testing framework
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 // The simplified checker might not catch all type errors
                 println!("Note: Simplified checker may not catch all type errors");
             }
             Err(errors) => {
                 assert!(!errors.is_empty());
-                println!("Caught expected type errors: {:?}", errors);
+                println!("Caught expected type errors: {errors:?}");
             }
         }
     }
@@ -328,13 +328,13 @@ mod tests {
 
     #[test]
     fn test_multiple_variable_declarations() {
-        let glsl_code = r#"
+        let glsl_code = r"
             void main() {
                 float a, b, c;
                 int x = 1, y = 2;
                 vec3 v1 = vec3(1.0), v2 = vec3(2.0);
             }
-        "#;
+        ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code);
         if let Ok(tu) = translation_unit {
@@ -353,8 +353,7 @@ mod tests {
         for func in &math_funcs {
             assert!(
                 table.lookup_function(func).is_some(),
-                "Function {} should be available",
-                func
+                "Function {func} should be available"
             );
         }
 
@@ -363,8 +362,7 @@ mod tests {
         for func in &vector_funcs {
             assert!(
                 table.lookup_function(func).is_some(),
-                "Function {} should be available",
-                func
+                "Function {func} should be available"
             );
         }
 
@@ -373,8 +371,7 @@ mod tests {
         for func in &constructor_funcs {
             assert!(
                 table.lookup_function(func).is_some(),
-                "Function {} should be available",
-                func
+                "Function {func} should be available"
             );
         }
     }
