@@ -269,26 +269,47 @@ impl GLSLType {
     #[must_use]
     pub fn can_construct_from(&self, args: &[GLSLType]) -> bool {
         match self {
-            // Vector constructors
+            // Vector constructors - support flexible component combinations
             GLSLType::Vec2 => {
                 match args.len() {
                     1 => args[0].is_scalar() && args[0].is_numeric(),
                     2 => args.iter().all(|t| t.is_scalar() && t.is_numeric()),
-                    _ => false,
+                    _ => {
+                        // Check if total components match target
+                        let total_components: usize = args.iter()
+                            .filter_map(|t| if t.is_scalar() && t.is_numeric() { Some(1) } 
+                                       else { t.component_count() })
+                            .sum();
+                        total_components == 2 && args.iter().all(|t| t.is_numeric())
+                    }
                 }
             }
             GLSLType::Vec3 => {
                 match args.len() {
                     1 => args[0].is_scalar() && args[0].is_numeric(),
                     3 => args.iter().all(|t| t.is_scalar() && t.is_numeric()),
-                    _ => false,
+                    _ => {
+                        // Check if total components match target
+                        let total_components: usize = args.iter()
+                            .filter_map(|t| if t.is_scalar() && t.is_numeric() { Some(1) } 
+                                       else { t.component_count() })
+                            .sum();
+                        total_components == 3 && args.iter().all(|t| t.is_numeric())
+                    }
                 }
             }
             GLSLType::Vec4 => {
                 match args.len() {
                     1 => args[0].is_scalar() && args[0].is_numeric(),
                     4 => args.iter().all(|t| t.is_scalar() && t.is_numeric()),
-                    _ => false,
+                    _ => {
+                        // Check if total components match target (e.g., vec4(vec3, float))
+                        let total_components: usize = args.iter()
+                            .filter_map(|t| if t.is_scalar() && t.is_numeric() { Some(1) } 
+                                       else { t.component_count() })
+                            .sum();
+                        total_components == 4 && args.iter().all(|t| t.is_numeric())
+                    }
                 }
             }
             // Matrix constructors
@@ -600,13 +621,47 @@ impl SimpleTypeChecker {
         let return_type =
             Self::get_type_from_type_specifier(&func_def.prototype.content.ty.content.ty.content);
 
+        // Collect parameter types for function signature
+        let mut param_types = Vec::new();
+        
+        // Process function parameters
+        for param in &func_def.prototype.content.parameters {
+            match &param.content {
+                ast::FunctionParameterDeclarationData::Named(_, param_decl) => {
+                    let param_type = Self::get_type_from_type_specifier(&param_decl.content.ty.content);
+                    param_types.push(param_type);
+                }
+                ast::FunctionParameterDeclarationData::Unnamed(_, _) => {
+                    // Handle unnamed parameters
+                    param_types.push(GLSLType::Unknown);
+                }
+            }
+        }
+
+        // Register function in global scope first
+        let func_name = func_def.prototype.content.name.content.0.to_string();
+        let func_type = GLSLType::Function(Box::new(return_type), param_types);
+        self.symbol_table.declare_function(func_name, func_type);
+
         // Enter function scope
         self.symbol_table.enter_scope();
 
-        // Register function
-        let func_name = func_def.prototype.content.name.content.0.to_string();
-        let func_type = GLSLType::Function(Box::new(return_type), vec![]); // Simplified
-        self.symbol_table.declare_function(func_name, func_type);
+        // Add parameters to function scope
+        for param in &func_def.prototype.content.parameters {
+            match &param.content {
+                ast::FunctionParameterDeclarationData::Named(_, param_decl) => {
+                                         let name = &param_decl.content.ident;
+                     let param_type = Self::get_type_from_type_specifier(&param_decl.content.ty.content);
+                     let param_name = name.content.ident.content.0.to_string();
+                     if let Err(msg) = self.symbol_table.declare_variable(param_name, param_type) {
+                         self.error(msg);
+                     }
+                }
+                ast::FunctionParameterDeclarationData::Unnamed(_, _) => {
+                    // Unnamed parameters don't need to be added to scope
+                }
+            }
+        }
 
         // Check function body
         self.check_compound_statement(&func_def.statement.content);
@@ -959,12 +1014,56 @@ impl SimpleTypeChecker {
             }
 
             Add | Sub | Mult | Div => {
+                // Handle matrix-vector and vector-scalar operations first
+                match op {
+                    Mult => {
+                        // Matrix * Vector multiplication
+                        match (left, right) {
+                            (GLSLType::Mat4, GLSLType::Vec4) => return GLSLType::Vec4,
+                            (GLSLType::Mat3, GLSLType::Vec3) => return GLSLType::Vec3,
+                            (GLSLType::Mat2, GLSLType::Vec2) => return GLSLType::Vec2,
+                            // Vector * Matrix (right multiplication)
+                            (GLSLType::Vec4, GLSLType::Mat4) => return GLSLType::Vec4,
+                            (GLSLType::Vec3, GLSLType::Mat3) => return GLSLType::Vec3,
+                            (GLSLType::Vec2, GLSLType::Mat2) => return GLSLType::Vec2,
+                            // Scalar * Vector or Vector * Scalar
+                            (l, r) if l.is_scalar() && r.is_vector() => return r.clone(),
+                            (l, r) if l.is_vector() && r.is_scalar() => return l.clone(),
+                            // Scalar * Matrix or Matrix * Scalar
+                            (l, r) if l.is_scalar() && r.is_matrix() => return r.clone(),
+                            (l, r) if l.is_matrix() && r.is_scalar() => return l.clone(),
+                            _ => {} // Fall through to general case
+                        }
+                    }
+                    Add | Sub => {
+                        // Component-wise operations require same types
+                        if left.is_vector() && right.is_vector() && left == right {
+                            return left.clone();
+                        }
+                        if left.is_matrix() && right.is_matrix() && left == right {
+                            return left.clone();
+                        }
+                    }
+                    Div => {
+                        // Vector / Scalar
+                        if left.is_vector() && right.is_scalar() {
+                            return left.clone();
+                        }
+                        // Matrix / Scalar
+                        if left.is_matrix() && right.is_scalar() {
+                            return left.clone();
+                        }
+                    }
+                    _ => {}
+                }
+
+                // General numeric type checking
                 if !left.is_numeric() || !right.is_numeric() {
                     self.error("Arithmetic operators require numeric operands".to_string());
                     return GLSLType::Unknown;
                 }
 
-                // Simplified type promotion
+                // Simplified type promotion for scalars
                 match (left, right) {
                     (l, r) if l == r => l.clone(),
                     (GLSLType::Float, _) | (_, GLSLType::Float) => GLSLType::Float,
