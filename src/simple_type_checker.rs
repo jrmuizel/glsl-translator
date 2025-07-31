@@ -35,6 +35,40 @@ pub enum GLSLType {
     Mat2,
     Mat3,
     Mat4,
+    Mat2x3,
+    Mat2x4,
+    Mat3x2,
+    Mat3x4,
+    Mat4x2,
+    Mat4x3,
+    DMat2,
+    DMat3,
+    DMat4,
+
+    // Sampler types
+    Sampler1D,
+    Sampler2D,
+    Sampler3D,
+    SamplerCube,
+    Sampler1DShadow,
+    Sampler2DShadow,
+    SamplerCubeShadow,
+    Sampler1DArray,
+    Sampler2DArray,
+    Sampler1DArrayShadow,
+    Sampler2DArrayShadow,
+    ISampler1D,
+    ISampler2D,
+    ISampler3D,
+    ISamplerCube,
+    ISampler1DArray,
+    ISampler2DArray,
+    USampler1D,
+    USampler2D,
+    USampler3D,
+    USamplerCube,
+    USampler1DArray,
+    USampler2DArray,
 
     // Array type
     Array(Box<GLSLType>, Option<usize>),
@@ -76,6 +110,38 @@ impl fmt::Display for GLSLType {
             GLSLType::Mat2 => write!(f, "mat2"),
             GLSLType::Mat3 => write!(f, "mat3"),
             GLSLType::Mat4 => write!(f, "mat4"),
+            GLSLType::Mat2x3 => write!(f, "mat2x3"),
+            GLSLType::Mat2x4 => write!(f, "mat2x4"),
+            GLSLType::Mat3x2 => write!(f, "mat3x2"),
+            GLSLType::Mat3x4 => write!(f, "mat3x4"),
+            GLSLType::Mat4x2 => write!(f, "mat4x2"),
+            GLSLType::Mat4x3 => write!(f, "mat4x3"),
+            GLSLType::DMat2 => write!(f, "dmat2"),
+            GLSLType::DMat3 => write!(f, "dmat3"),
+            GLSLType::DMat4 => write!(f, "dmat4"),
+            GLSLType::Sampler1D => write!(f, "sampler1D"),
+            GLSLType::Sampler2D => write!(f, "sampler2D"),
+            GLSLType::Sampler3D => write!(f, "sampler3D"),
+            GLSLType::SamplerCube => write!(f, "samplerCube"),
+            GLSLType::Sampler1DShadow => write!(f, "sampler1DShadow"),
+            GLSLType::Sampler2DShadow => write!(f, "sampler2DShadow"),
+            GLSLType::SamplerCubeShadow => write!(f, "samplerCubeShadow"),
+            GLSLType::Sampler1DArray => write!(f, "sampler1DArray"),
+            GLSLType::Sampler2DArray => write!(f, "sampler2DArray"),
+            GLSLType::Sampler1DArrayShadow => write!(f, "sampler1DArrayShadow"),
+            GLSLType::Sampler2DArrayShadow => write!(f, "sampler2DArrayShadow"),
+            GLSLType::ISampler1D => write!(f, "isampler1D"),
+            GLSLType::ISampler2D => write!(f, "isampler2D"),
+            GLSLType::ISampler3D => write!(f, "isampler3D"),
+            GLSLType::ISamplerCube => write!(f, "isamplerCube"),
+            GLSLType::ISampler1DArray => write!(f, "isampler1DArray"),
+            GLSLType::ISampler2DArray => write!(f, "isampler2DArray"),
+            GLSLType::USampler1D => write!(f, "usampler1D"),
+            GLSLType::USampler2D => write!(f, "usampler2D"),
+            GLSLType::USampler3D => write!(f, "usampler3D"),
+            GLSLType::USamplerCube => write!(f, "usamplerCube"),
+            GLSLType::USampler1DArray => write!(f, "usampler1DArray"),
+            GLSLType::USampler2DArray => write!(f, "usampler2DArray"),
             GLSLType::Array(ty, Some(size)) => write!(f, "{ty}[{size}]"),
             GLSLType::Array(ty, None) => write!(f, "{ty}[]"),
             GLSLType::Struct(name, _) => write!(f, "struct {name}"),
@@ -130,7 +196,21 @@ impl GLSLType {
     /// Check if this type is a matrix type
     #[must_use]
     pub fn is_matrix(&self) -> bool {
-        matches!(self, GLSLType::Mat2 | GLSLType::Mat3 | GLSLType::Mat4)
+        matches!(
+            self,
+            GLSLType::Mat2
+                | GLSLType::Mat3
+                | GLSLType::Mat4
+                | GLSLType::Mat2x3
+                | GLSLType::Mat2x4
+                | GLSLType::Mat3x2
+                | GLSLType::Mat3x4
+                | GLSLType::Mat4x2
+                | GLSLType::Mat4x3
+                | GLSLType::DMat2
+                | GLSLType::DMat3
+                | GLSLType::DMat4
+        )
     }
 
     /// Check if this type is numeric (can be used in arithmetic operations)
@@ -182,6 +262,58 @@ impl GLSLType {
             GLSLType::UVec2 | GLSLType::UVec3 | GLSLType::UVec4 => Some(GLSLType::UInt),
             GLSLType::DVec2 | GLSLType::DVec3 | GLSLType::DVec4 => Some(GLSLType::Double),
             _ => None,
+        }
+    }
+
+    /// Check if this type can be constructed from the given argument types
+    #[must_use]
+    pub fn can_construct_from(&self, args: &[GLSLType]) -> bool {
+        match self {
+            // Vector constructors
+            GLSLType::Vec2 => {
+                match args.len() {
+                    1 => args[0].is_scalar() && args[0].is_numeric(),
+                    2 => args.iter().all(|t| t.is_scalar() && t.is_numeric()),
+                    _ => false,
+                }
+            }
+            GLSLType::Vec3 => {
+                match args.len() {
+                    1 => args[0].is_scalar() && args[0].is_numeric(),
+                    3 => args.iter().all(|t| t.is_scalar() && t.is_numeric()),
+                    _ => false,
+                }
+            }
+            GLSLType::Vec4 => {
+                match args.len() {
+                    1 => args[0].is_scalar() && args[0].is_numeric(),
+                    4 => args.iter().all(|t| t.is_scalar() && t.is_numeric()),
+                    _ => false,
+                }
+            }
+            // Matrix constructors
+            GLSLType::Mat2 => {
+                match args.len() {
+                    1 => args[0].is_scalar() && args[0].is_numeric(),
+                    4 => args.iter().all(|t| t.is_scalar() && t.is_numeric()),
+                    _ => false,
+                }
+            }
+            GLSLType::Mat3 => {
+                match args.len() {
+                    1 => args[0].is_scalar() && args[0].is_numeric(),
+                    9 => args.iter().all(|t| t.is_scalar() && t.is_numeric()),
+                    _ => false,
+                }
+            }
+            GLSLType::Mat4 => {
+                match args.len() {
+                    1 => args[0].is_scalar() && args[0].is_numeric(),
+                    16 => args.iter().all(|t| t.is_scalar() && t.is_numeric()),
+                    _ => false,
+                }
+            }
+            _ => false,
         }
     }
 
@@ -268,6 +400,7 @@ impl SymbolTable {
 
         // Add built-in functions
         table.add_builtin_functions();
+        table.add_builtin_variables();
         table
     }
 
@@ -377,6 +510,30 @@ impl SymbolTable {
             ),
         );
     }
+
+    fn add_builtin_variables(&mut self) {
+        if let Some(global_scope) = self.scopes.first_mut() {
+            // Vertex shader built-ins
+            global_scope.insert("gl_Position".to_string(), GLSLType::Vec4);
+            global_scope.insert("gl_PointSize".to_string(), GLSLType::Float);
+            global_scope.insert("gl_VertexID".to_string(), GLSLType::Int);
+            global_scope.insert("gl_InstanceID".to_string(), GLSLType::Int);
+
+            // Fragment shader built-ins
+            global_scope.insert("gl_FragColor".to_string(), GLSLType::Vec4);
+            global_scope.insert("gl_FragData".to_string(), GLSLType::Array(Box::new(GLSLType::Vec4), None));
+            global_scope.insert("gl_FragCoord".to_string(), GLSLType::Vec4);
+            global_scope.insert("gl_FrontFacing".to_string(), GLSLType::Bool);
+            global_scope.insert("gl_PointCoord".to_string(), GLSLType::Vec2);
+
+            // Geometry shader built-ins
+            global_scope.insert("gl_PrimitiveIDIn".to_string(), GLSLType::Int);
+            global_scope.insert("gl_PrimitiveID".to_string(), GLSLType::Int);
+
+            // Common built-ins
+            global_scope.insert("gl_ClipDistance".to_string(), GLSLType::Array(Box::new(GLSLType::Float), None));
+        }
+    }
 }
 
 /// Simplified type checker that demonstrates the core concepts
@@ -480,8 +637,62 @@ impl SimpleTypeChecker {
                     self.check_expression(&expr.content);
                 }
             }
+            ast::StatementData::Selection(selection) => {
+                self.check_selection_statement(&selection.content);
+            }
+            ast::StatementData::Switch(switch) => {
+                self.check_switch_statement(&switch.content);
+            }
+            ast::StatementData::CaseLabel(_) => {
+                // Case labels are handled in switch statements
+            }
+            ast::StatementData::Iteration(iteration) => {
+                self.check_iteration_statement(&iteration.content);
+            }
+            ast::StatementData::Jump(jump) => {
+                self.check_jump_statement(&jump.content);
+            }
             _ => {
                 // Handle other statement types - simplified for now
+            }
+        }
+    }
+
+    fn check_selection_statement(&mut self, _selection: &ast::SelectionStatementData) {
+        // Simplified selection statement checking
+        // TODO: Properly handle selection statement structure
+    }
+
+    fn check_switch_statement(&mut self, _switch: &ast::SwitchStatementData) {
+        // Simplified switch statement checking
+        // TODO: Properly handle switch statement structure
+    }
+
+    fn check_iteration_statement(&mut self, _iteration: &ast::IterationStatementData) {
+        // Simplified iteration statement checking  
+        // TODO: Properly handle loop statement structures
+    }
+
+    fn check_jump_statement(&mut self, jump: &ast::JumpStatementData) {
+        match jump {
+            ast::JumpStatementData::Continue => {
+                // Continue statements are valid in loops - context checking could be added
+            }
+            ast::JumpStatementData::Break => {
+                // Break statements are valid in loops and switches - context checking could be added
+            }
+            ast::JumpStatementData::Return(expr) => {
+                if let Some(return_expr) = expr {
+                    let return_type = self.check_expression(&return_expr.content);
+                    // TODO: Check against function return type
+                    // For now, we just validate the expression
+                    if matches!(return_type, GLSLType::Unknown) {
+                        self.error("Invalid return expression".to_string());
+                    }
+                }
+            }
+            ast::JumpStatementData::Discard => {
+                // Discard is valid in fragment shaders
             }
         }
     }
@@ -547,7 +758,7 @@ impl SimpleTypeChecker {
             ast::ExprData::FloatConst(_) => GLSLType::Float,
             ast::ExprData::DoubleConst(_) => GLSLType::Double,
 
-            ast::ExprData::FunCall(fun, args) => Self::check_function_call(fun, args),
+            ast::ExprData::FunCall(fun, args) => self.check_function_call(fun, args),
 
             ast::ExprData::Binary(op, left, right) => {
                 let left_type = self.check_expression(&left.content);
@@ -566,22 +777,153 @@ impl SimpleTypeChecker {
                 left_type
             }
 
+            ast::ExprData::Unary(op, expr) => {
+                let expr_type = self.check_expression(&expr.content);
+                self.check_unary_operator(&op.content, &expr_type)
+            }
+
+            ast::ExprData::PostInc(expr) | ast::ExprData::PostDec(expr) => {
+                let expr_type = self.check_expression(&expr.content);
+                if !expr_type.is_numeric() {
+                    self.error("Increment/decrement operators require numeric operands".to_string());
+                }
+                expr_type
+            }
+
+            ast::ExprData::Comma(left, right) => {
+                self.check_expression(&left.content);
+                self.check_expression(&right.content)
+            }
+
+            ast::ExprData::Ternary(cond, true_expr, false_expr) => {
+                let cond_type = self.check_expression(&cond.content);
+                let true_type = self.check_expression(&true_expr.content);
+                let false_type = self.check_expression(&false_expr.content);
+
+                if !matches!(cond_type, GLSLType::Bool) {
+                    self.error("Ternary condition must be boolean".to_string());
+                }
+
+                if true_type.is_compatible_with(&false_type) {
+                    true_type
+                } else if false_type.is_compatible_with(&true_type) {
+                    false_type
+                } else {
+                    self.error(format!(
+                        "Incompatible types in ternary operator: '{}' and '{}'",
+                        true_type, false_type
+                    ));
+                    GLSLType::Unknown
+                }
+            }
+
+            ast::ExprData::Bracket(expr, index) => {
+                let expr_type = self.check_expression(&expr.content);
+                let index_type = self.check_expression(&index.content);
+
+                if !matches!(index_type, GLSLType::Int | GLSLType::UInt) {
+                    self.error("Array index must be integer".to_string());
+                }
+
+                match expr_type {
+                    GLSLType::Array(element_type, _) => (*element_type).clone(),
+                    GLSLType::Vec2 | GLSLType::Vec3 | GLSLType::Vec4 => GLSLType::Float,
+                    GLSLType::IVec2 | GLSLType::IVec3 | GLSLType::IVec4 => GLSLType::Int,
+                    GLSLType::BVec2 | GLSLType::BVec3 | GLSLType::BVec4 => GLSLType::Bool,
+                    GLSLType::UVec2 | GLSLType::UVec3 | GLSLType::UVec4 => GLSLType::UInt,
+                    GLSLType::DVec2 | GLSLType::DVec3 | GLSLType::DVec4 => GLSLType::Double,
+                    GLSLType::Mat2 | GLSLType::Mat3 | GLSLType::Mat4 => GLSLType::Vec4, // Simplified
+                    _ => {
+                        self.error(format!("Cannot index into type '{}'", expr_type));
+                        GLSLType::Unknown
+                    }
+                }
+            }
+
+            ast::ExprData::Dot(expr, field) => {
+                let expr_type = self.check_expression(&expr.content);
+                self.check_field_access(&expr_type, &field.content.0)
+            }
+
             _ => {
-                // Handle other expression types
+                // Handle other expression types that aren't implemented yet
                 GLSLType::Unknown
             }
         }
     }
 
-    fn check_function_call(fun: &ast::FunIdentifier, _args: &[ast::Expr]) -> GLSLType {
+    fn check_function_call(&mut self, fun: &ast::FunIdentifier, args: &[ast::Expr]) -> GLSLType {
+        // First, evaluate all argument types
+        let arg_types: Vec<GLSLType> = args.iter()
+            .map(|arg| self.check_expression(&arg.content))
+            .collect();
+
         match &fun.content {
             ast::FunIdentifierData::TypeSpecifier(type_spec) => {
                 // Constructor call - get the type from the type specifier
-                Self::get_type_from_type_specifier(&type_spec.content)
+                let target_type = Self::get_type_from_type_specifier(&type_spec.content);
+                
+                // Check if the constructor arguments are valid
+                if target_type.can_construct_from(&arg_types) {
+                    target_type
+                } else {
+                    self.error(format!(
+                        "Cannot construct '{}' with arguments ({})",
+                        target_type,
+                        arg_types.iter()
+                            .map(|t| t.to_string())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                    GLSLType::Unknown
+                }
             }
-            ast::FunIdentifierData::Expr(_expr) => {
-                // Function call through expression - simplified handling
-                GLSLType::Unknown
+            ast::FunIdentifierData::Expr(expr) => {
+                // Function call through expression
+                if let ast::ExprData::Variable(var) = &expr.content {
+                    let func_name = &var.content.0;
+                    
+                    // Check if it's a built-in function
+                    if let Some(func_type) = self.symbol_table.lookup_function(func_name) {
+                        if let GLSLType::Function(return_type, param_types) = func_type {
+                            // Check argument compatibility (simplified - exact match for now)
+                            if param_types.len() == arg_types.len() {
+                                let mut compatible = true;
+                                for (param_type, arg_type) in param_types.iter().zip(arg_types.iter()) {
+                                    if !param_type.is_compatible_with(arg_type) && !arg_type.is_compatible_with(param_type) {
+                                        compatible = false;
+                                        break;
+                                    }
+                                }
+                                
+                                if compatible {
+                                    (**return_type).clone()
+                                } else {
+                                    self.error(format!(
+                                        "Function '{}' called with incompatible arguments", 
+                                        func_name
+                                    ));
+                                    GLSLType::Unknown
+                                }
+                            } else {
+                                self.error(format!(
+                                    "Function '{}' expects {} arguments, got {}",
+                                    func_name, param_types.len(), arg_types.len()
+                                ));
+                                GLSLType::Unknown
+                            }
+                        } else {
+                            self.error(format!("'{}' is not a function", func_name));
+                            GLSLType::Unknown
+                        }
+                    } else {
+                        self.error(format!("Undefined function '{}'", func_name));
+                        GLSLType::Unknown
+                    }
+                } else {
+                    // Complex function expression - simplified handling
+                    GLSLType::Unknown
+                }
             }
         }
     }
@@ -638,6 +980,137 @@ impl SimpleTypeChecker {
         }
     }
 
+    fn check_unary_operator(
+        &mut self,
+        op: &ast::UnaryOpData,
+        expr: &GLSLType,
+    ) -> GLSLType {
+        use ast::UnaryOpData::{Add, Not, Inc, Dec};
+
+        match op {
+            Add => expr.clone(),
+            ast::UnaryOpData::Minus => {
+                if !expr.is_numeric() {
+                    self.error("Unary minus requires numeric operand".to_string());
+                    return GLSLType::Unknown;
+                }
+                expr.clone()
+            }
+            Not => {
+                if !matches!(expr, GLSLType::Bool) {
+                    self.error("Unary not requires boolean operand".to_string());
+                    return GLSLType::Unknown;
+                }
+                GLSLType::Bool
+            }
+            Inc => {
+                if !expr.is_numeric() {
+                    self.error("Increment operator requires numeric operand".to_string());
+                    return GLSLType::Unknown;
+                }
+                expr.clone()
+            }
+            Dec => {
+                if !expr.is_numeric() {
+                    self.error("Decrement operator requires numeric operand".to_string());
+                    return GLSLType::Unknown;
+                }
+                expr.clone()
+            }
+            _ => expr.clone(),
+        }
+    }
+
+    fn check_field_access(&mut self, expr: &GLSLType, field: &str) -> GLSLType {
+        match expr {
+            GLSLType::Struct(_name, fields) => {
+                if let Some((_field_name, field_type)) = fields.iter().find(|(n, _)| n == field) {
+                    field_type.clone()
+                } else {
+                    self.error(format!("Field '{}' not found in struct", field));
+                    GLSLType::Unknown
+                }
+            }
+            // Vector swizzling
+            GLSLType::Vec2 | GLSLType::Vec3 | GLSLType::Vec4 => {
+                self.check_vector_swizzle(expr, field)
+            }
+            GLSLType::IVec2 | GLSLType::IVec3 | GLSLType::IVec4 => {
+                self.check_vector_swizzle(expr, field)
+            }
+            GLSLType::BVec2 | GLSLType::BVec3 | GLSLType::BVec4 => {
+                self.check_vector_swizzle(expr, field)
+            }
+            GLSLType::UVec2 | GLSLType::UVec3 | GLSLType::UVec4 => {
+                self.check_vector_swizzle(expr, field)
+            }
+            GLSLType::DVec2 | GLSLType::DVec3 | GLSLType::DVec4 => {
+                self.check_vector_swizzle(expr, field)
+            }
+            _ => {
+                self.error(format!("Cannot access field '{}' on type '{}'", field, expr));
+                GLSLType::Unknown
+            }
+        }
+    }
+
+    fn check_vector_swizzle(&mut self, vec_type: &GLSLType, swizzle: &str) -> GLSLType {
+        let base_type = vec_type.base_type().unwrap_or(GLSLType::Float);
+        let vec_size = vec_type.component_count().unwrap_or(0);
+        
+        // Validate swizzle characters
+        let valid_chars = if swizzle.chars().all(|c| "xyzw".contains(c)) {
+            "xyzw"
+        } else if swizzle.chars().all(|c| "rgba".contains(c)) {
+            "rgba"
+        } else if swizzle.chars().all(|c| "stpq".contains(c)) {
+            "stpq"
+        } else {
+            self.error(format!("Invalid swizzle '{}'", swizzle));
+            return GLSLType::Unknown;
+        };
+
+        // Check if all components are valid for the vector size
+        for c in swizzle.chars() {
+            let index = valid_chars.chars().position(|ch| ch == c).unwrap_or(4);
+            if index >= vec_size {
+                self.error(format!(
+                    "Swizzle component '{}' is out of range for vector of size {}",
+                    c, vec_size
+                ));
+                return GLSLType::Unknown;
+            }
+        }
+
+        // Return appropriate vector type based on swizzle length
+        match (swizzle.len(), base_type) {
+            (1, GLSLType::Float) => GLSLType::Float,
+            (1, GLSLType::Int) => GLSLType::Int,
+            (1, GLSLType::Bool) => GLSLType::Bool,
+            (1, GLSLType::UInt) => GLSLType::UInt,
+            (1, GLSLType::Double) => GLSLType::Double,
+            (2, GLSLType::Float) => GLSLType::Vec2,
+            (2, GLSLType::Int) => GLSLType::IVec2,
+            (2, GLSLType::Bool) => GLSLType::BVec2,
+            (2, GLSLType::UInt) => GLSLType::UVec2,
+            (2, GLSLType::Double) => GLSLType::DVec2,
+            (3, GLSLType::Float) => GLSLType::Vec3,
+            (3, GLSLType::Int) => GLSLType::IVec3,
+            (3, GLSLType::Bool) => GLSLType::BVec3,
+            (3, GLSLType::UInt) => GLSLType::UVec3,
+            (3, GLSLType::Double) => GLSLType::DVec3,
+            (4, GLSLType::Float) => GLSLType::Vec4,
+            (4, GLSLType::Int) => GLSLType::IVec4,
+            (4, GLSLType::Bool) => GLSLType::BVec4,
+            (4, GLSLType::UInt) => GLSLType::UVec4,
+            (4, GLSLType::Double) => GLSLType::DVec4,
+            _ => {
+                self.error(format!("Invalid swizzle length: {}", swizzle.len()));
+                GLSLType::Unknown
+            }
+        }
+    }
+
     fn get_type_from_fully_specified_type(spec: &ast::FullySpecifiedTypeData) -> GLSLType {
         Self::get_type_from_type_specifier(&spec.ty.content)
     }
@@ -653,9 +1126,31 @@ impl SimpleTypeChecker {
             ast::TypeSpecifierNonArrayData::Vec2 => GLSLType::Vec2,
             ast::TypeSpecifierNonArrayData::Vec3 => GLSLType::Vec3,
             ast::TypeSpecifierNonArrayData::Vec4 => GLSLType::Vec4,
+            ast::TypeSpecifierNonArrayData::BVec2 => GLSLType::BVec2,
+            ast::TypeSpecifierNonArrayData::BVec3 => GLSLType::BVec3,
+            ast::TypeSpecifierNonArrayData::BVec4 => GLSLType::BVec4,
+            ast::TypeSpecifierNonArrayData::IVec2 => GLSLType::IVec2,
+            ast::TypeSpecifierNonArrayData::IVec3 => GLSLType::IVec3,
+            ast::TypeSpecifierNonArrayData::IVec4 => GLSLType::IVec4,
+            ast::TypeSpecifierNonArrayData::UVec2 => GLSLType::UVec2,
+            ast::TypeSpecifierNonArrayData::UVec3 => GLSLType::UVec3,
+            ast::TypeSpecifierNonArrayData::UVec4 => GLSLType::UVec4,
+            ast::TypeSpecifierNonArrayData::DVec2 => GLSLType::DVec2,
+            ast::TypeSpecifierNonArrayData::DVec3 => GLSLType::DVec3,
+            ast::TypeSpecifierNonArrayData::DVec4 => GLSLType::DVec4,
             ast::TypeSpecifierNonArrayData::Mat2 => GLSLType::Mat2,
             ast::TypeSpecifierNonArrayData::Mat3 => GLSLType::Mat3,
             ast::TypeSpecifierNonArrayData::Mat4 => GLSLType::Mat4,
+            ast::TypeSpecifierNonArrayData::Mat23 => GLSLType::Mat2x3,
+            ast::TypeSpecifierNonArrayData::Mat24 => GLSLType::Mat2x4,
+            ast::TypeSpecifierNonArrayData::Mat32 => GLSLType::Mat3x2,
+            ast::TypeSpecifierNonArrayData::Mat34 => GLSLType::Mat3x4,
+            ast::TypeSpecifierNonArrayData::Mat42 => GLSLType::Mat4x2,
+            ast::TypeSpecifierNonArrayData::Mat43 => GLSLType::Mat4x3,
+            ast::TypeSpecifierNonArrayData::Sampler1D => GLSLType::Sampler1D,
+            ast::TypeSpecifierNonArrayData::Sampler2D => GLSLType::Sampler2D,
+            ast::TypeSpecifierNonArrayData::Sampler3D => GLSLType::Sampler3D,
+            ast::TypeSpecifierNonArrayData::SamplerCube => GLSLType::SamplerCube,
             _ => GLSLType::Unknown,
         }
     }

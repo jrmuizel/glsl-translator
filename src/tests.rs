@@ -375,4 +375,76 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_builtin_variables_available() {
+        let table = SymbolTable::new();
+
+        // Test some important built-in variables
+        assert_eq!(table.lookup_variable("gl_Position"), Some(&GLSLType::Vec4));
+        assert_eq!(table.lookup_variable("gl_FragColor"), Some(&GLSLType::Vec4));
+        assert_eq!(table.lookup_variable("gl_VertexID"), Some(&GLSLType::Int));
+        assert_eq!(table.lookup_variable("gl_FrontFacing"), Some(&GLSLType::Bool));
+        assert_eq!(table.lookup_variable("gl_PointSize"), Some(&GLSLType::Float));
+        assert_eq!(table.lookup_variable("gl_PointCoord"), Some(&GLSLType::Vec2));
+    }
+
+    #[test]
+    fn test_vector_constructor_validation() {
+        // Test that vector constructors are properly validated
+        assert!(GLSLType::Vec3.can_construct_from(&[GLSLType::Float, GLSLType::Float, GLSLType::Float]));
+        assert!(GLSLType::Vec3.can_construct_from(&[GLSLType::Float])); // Single scalar
+        assert!(!GLSLType::Vec3.can_construct_from(&[GLSLType::Float, GLSLType::Float])); // Wrong count
+        assert!(!GLSLType::Vec3.can_construct_from(&[GLSLType::Bool, GLSLType::Bool, GLSLType::Bool])); // Wrong type
+        
+        assert!(GLSLType::Vec4.can_construct_from(&[GLSLType::Float, GLSLType::Float, GLSLType::Float, GLSLType::Float]));
+        assert!(GLSLType::Vec4.can_construct_from(&[GLSLType::Float])); // Single scalar
+    }
+
+    #[test]
+    fn test_matrix_types() {
+        // Test matrix type properties
+        assert!(GLSLType::Mat2.is_matrix());
+        assert!(GLSLType::Mat3.is_matrix());
+        assert!(GLSLType::Mat4.is_matrix());
+        assert!(GLSLType::Mat2x3.is_matrix());
+        assert!(GLSLType::Mat3x4.is_matrix());
+        assert!(GLSLType::DMat2.is_matrix());
+        
+        assert!(GLSLType::Mat2.is_numeric());
+        assert!(GLSLType::Mat3x4.is_numeric());
+        
+        // Test display
+        assert_eq!(GLSLType::Mat2x3.to_string(), "mat2x3");
+        assert_eq!(GLSLType::DMat4.to_string(), "dmat4");
+    }
+
+    #[test]
+    fn test_sampler_types() {
+        // Test sampler type display
+        assert_eq!(GLSLType::Sampler2D.to_string(), "sampler2D");
+        assert_eq!(GLSLType::SamplerCube.to_string(), "samplerCube");
+        assert_eq!(GLSLType::Sampler2DShadow.to_string(), "sampler2DShadow");
+        assert_eq!(GLSLType::ISampler2D.to_string(), "isampler2D");
+        assert_eq!(GLSLType::USampler3D.to_string(), "usampler3D");
+    }
+
+    #[test]
+    fn test_enhanced_glsl_vertex_shader() {
+        let glsl_code = r"
+            void main() {
+                float x = 5.0;
+                vec4 position = vec4(x, 0.0, 0.0, 1.0);
+                gl_Position = position;
+                gl_PointSize = 1.0;
+            }
+        ";
+
+        let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
+        let mut type_checker = SimpleTypeChecker::new();
+
+        assert!(type_checker
+            .check_translation_unit(&translation_unit)
+            .is_ok());
+    }
 }
