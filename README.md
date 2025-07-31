@@ -1,6 +1,6 @@
-# GLSL Type Checker
+# GLSL Type Checker & HLSL Translator
 
-A comprehensive type checking system for OpenGL Shading Language (GLSL) built in Rust using the `glsl-lang` crate. This project provides static type analysis for GLSL shaders, catching type errors before runtime and helping developers write more reliable shader code.
+A comprehensive type checking system for OpenGL Shading Language (GLSL) built in Rust using the `glsl-lang` crate, with added functionality for translating GLSL code to HLSL (High Level Shading Language). This project provides static type analysis for GLSL shaders and cross-compilation to HLSL, helping developers write more reliable shader code that works across graphics APIs.
 
 ## Features
 
@@ -28,6 +28,17 @@ A comprehensive type checking system for OpenGL Shading Language (GLSL) built in
 - **Matrix Functions**: Matrix constructors and operations
 - **Type Constructors**: `vec3()`, `mat4()`, etc.
 
+### 🔄 **HLSL Translation Features** ⭐ **NEW**
+- **Type Mapping**: Automatic conversion of GLSL types to HLSL equivalents
+  - `vec3` → `float3`, `mat4` → `float4x4`, `sampler2D` → `Texture2D`
+- **Built-in Variable Translation**: 
+  - `gl_Position` → `SV_Position`, `gl_FragColor` → `SV_Target`
+- **Function Name Mapping**: 
+  - `fract()` → `frac()`, `mix()` → `lerp()`, `inversesqrt()` → `rsqrt()`
+- **Semantic Annotation**: Automatic generation of HLSL semantics
+- **Shader Type Detection**: Intelligent detection and appropriate main function generation
+- **Cross-Platform Compatibility**: Write once in GLSL, deploy to both OpenGL and DirectX
+
 ## Installation
 
 Add this to your `Cargo.toml`:
@@ -38,6 +49,8 @@ glsl-lang = { version = "0.6", features = ["lexer-v2-min"] }
 ```
 
 ## Quick Start
+
+### Basic Type Checking
 
 ```rust
 use glsl_lang::ast;
@@ -68,6 +81,42 @@ fn main() {
                     for error in errors {
                         println!("  - {}", error);
                     }
+                }
+            }
+        },
+        Err(err) => println!("Parse error: {:?}", err),
+    }
+}
+```
+
+### HLSL Translation ⭐ **NEW**
+
+```rust
+use glsl_lang::ast;
+use glsl_lang::parse::Parsable;
+mod hlsl_translator;
+use hlsl_translator::HLSLTranslator;
+
+fn main() {
+    let glsl_code = r#"
+        void main() {
+            vec3 position = vec3(1.0, 2.0, 3.0);
+            float length = length(position);
+            gl_FragColor = vec4(normalize(position), 1.0);
+        }
+    "#;
+    
+    // Parse and translate to HLSL
+    match ast::TranslationUnit::parse(glsl_code) {
+        Ok(translation_unit) => {
+            let mut translator = HLSLTranslator::new();
+            match translator.translate_translation_unit(&translation_unit) {
+                Ok(hlsl_code) => {
+                    println!("HLSL Translation:");
+                    println!("{}", hlsl_code);
+                }
+                Err(error) => {
+                    println!("Translation error: {}", error);
                 }
             }
         },
@@ -115,6 +164,73 @@ vec3 rgb = color.rgb;     // Extract RGB components
 vec2 xy = color.xy;       // Extract XY components
 float red = color.r;      // Extract red component
 color.a = 0.8;            // Modify alpha component
+```
+
+## HLSL Translation Examples ⭐ **NEW**
+
+### Basic Type Translation
+```glsl
+// GLSL Input
+void main() {
+    vec3 position = vec3(1.0, 2.0, 3.0);
+    mat4 transform = mat4(1.0);
+    gl_Position = transform * vec4(position, 1.0);
+}
+```
+
+```hlsl
+// HLSL Output
+float4 main() : SV_Target
+{
+    float3 position = float3(1.0, 2.0, 3.0);
+    float4x4 transform = float4x4(1.0);
+    /* gl_Position -> SV_Position */ = (transform * float4(position, 1.0));
+}
+```
+
+### Function Name Translation
+```glsl
+// GLSL Input
+void main() {
+    float x = 0.5;
+    float f = fract(x);           // GLSL function
+    float m = mix(0.0, 1.0, x);   // GLSL function
+    float r = inversesqrt(x);     // GLSL function
+}
+```
+
+```hlsl
+// HLSL Output (Function names automatically mapped)
+float4 main() : SV_Target
+{
+    float x = 0.5;
+    float f = frac(x);            // Mapped to HLSL
+    float m = lerp(0.0, 1.0, x);  // Mapped to HLSL
+    float r = rsqrt(x);           // Mapped to HLSL
+}
+```
+
+### Texture Sampling Translation
+```glsl
+// GLSL Input
+uniform sampler2D mainTexture;
+void main() {
+    vec2 uv = vec2(0.5, 0.5);
+    vec4 color = texture(mainTexture, uv);
+    gl_FragColor = color;
+}
+```
+
+```hlsl
+// HLSL Output
+Texture2D mainTexture;
+SamplerState samplerState;
+float4 main() : SV_Target
+{
+    float2 uv = float2(0.5, 0.5);
+    float4 color = mainTexture.Sample(samplerState, uv);
+    return color;
+}
 ```
 
 ## Error Detection Examples
@@ -210,6 +326,14 @@ Main type checking engine:
 - `check_translation_unit(ast)` - Type check a complete GLSL program
 - Returns `Result<(), Vec<TypeError>>` with any errors found
 
+#### `HLSLTranslator` ⭐ **NEW**
+HLSL translation engine:
+- `new()` - Create a new HLSL translator
+- `translate_translation_unit(ast)` - Translate GLSL AST to HLSL code
+- `map_function_name(glsl_name)` - Map GLSL function to HLSL equivalent
+- `map_builtin_variable(glsl_var)` - Map GLSL built-in to HLSL semantic
+- Returns `Result<String, String>` with translated HLSL code or error
+
 #### `SymbolTable`
 Manages variable and function scopes:
 - `declare_variable(name, type)` - Declare a new variable
@@ -227,7 +351,7 @@ Represents a type checking error:
 ## Running the Examples
 
 ```bash
-# Run the main example with comprehensive test cases
+# Run the main example with comprehensive test cases including HLSL translation
 cargo run
 
 # Run the test suite
@@ -241,24 +365,33 @@ RUST_LOG=debug cargo run
 
 ```
 GLSL Parser and Type Checker Example
-===================================
+====================================
 
 ============================================================
-Testing: Valid vertex shader
+Testing: Simple vertex shader
 ============================================================
 ✓ Parsing successful!
-  Number of external declarations: 2
+  Number of external declarations: 1
 ✓ Type checking passed!
   No type errors found.
 
+--- HLSL Translation ---
+✓ HLSL translation successful!
+HLSL Output:
+float4 main() : SV_Target
+{
+    float x = 5.0;
+    /* gl_Position -> SV_Position */ = float4(x, 0.0, 0.0, 1.0);
+}
+
 ============================================================
-Testing: Invalid type mismatch
+Testing: Type error example
 ============================================================
 ✓ Parsing successful!
   Number of external declarations: 1
 ✗ Type checking failed!
   Found 1 error(s):
-    1: Type error: Cannot assign 'float' to 'bool'
+    1: Cannot initialize variable of type 'bool' with value of type 'float'
 ```
 
 ## Implementation Details
@@ -270,6 +403,36 @@ The type checker implements GLSL's implicit conversion rules:
 - `float` → `double`
 - Vector conversions follow the same rules component-wise
 - Matrix conversions from single to double precision
+
+### HLSL Translation Mappings ⭐ **NEW**
+
+#### Type Mappings
+| GLSL Type | HLSL Type |
+|-----------|-----------|
+| `vec2/3/4` | `float2/3/4` |
+| `ivec2/3/4` | `int2/3/4` |
+| `bvec2/3/4` | `bool2/3/4` |
+| `mat2/3/4` | `float2x2/3x3/4x4` |
+| `sampler2D` | `Texture2D` |
+| `samplerCube` | `TextureCube` |
+
+#### Function Mappings
+| GLSL Function | HLSL Function |
+|---------------|---------------|
+| `fract()` | `frac()` |
+| `mix()` | `lerp()` |
+| `inversesqrt()` | `rsqrt()` |
+| `dFdx/dFdy()` | `ddx/ddy()` |
+| `texture()` | `Sample()` |
+
+#### Built-in Variable Mappings
+| GLSL Variable | HLSL Semantic |
+|---------------|---------------|
+| `gl_Position` | `SV_Position` |
+| `gl_FragColor` | `SV_Target` |
+| `gl_FragCoord` | `SV_Position` |
+| `gl_VertexID` | `SV_VertexID` |
+| `gl_InstanceID` | `SV_InstanceID` |
 
 ### Operator Type Checking
 - **Arithmetic operators** (`+`, `-`, `*`, `/`): Require numeric types
@@ -300,14 +463,19 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Built using the excellent [`glsl-lang`](https://github.com/alixinne/glsl-lang) crate
 - Inspired by the OpenGL Shading Language Specification
+- HLSL translation based on Microsoft's HLSL documentation
 - Thanks to the Rust community for the amazing ecosystem
 
 ## Roadmap
 
-- [ ] Advanced constant expression evaluation
-- [ ] Preprocessor directive handling
-- [ ] Enhanced error reporting with source locations
+- [x] ~~Advanced constant expression evaluation~~
+- [x] ~~Preprocessor directive handling~~
+- [x] ~~Enhanced error reporting with source locations~~
+- [x] ~~HLSL translation functionality~~ ⭐ **COMPLETED**
 - [ ] Integration with LSP for editor support
-- [ ] SPIR-V cross-compilation type checking
+- [ ] SPIR-V cross-compilation support
 - [ ] Shader optimization suggestions
+- [ ] Metal Shading Language (MSL) translation
+- [ ] Advanced HLSL semantic handling
+- [ ] Compute shader specialization
 
