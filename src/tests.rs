@@ -481,13 +481,13 @@ mod hlsl_translation_tests {
     use glsl_lang::ast;
     use glsl_lang::parse::Parsable;
 
-    /// Helper function to test GLSL to HLSL translation
-    fn test_glsl_to_hlsl(glsl_code: &str, expected_hlsl_parts: &[&str]) -> String {
+    /// Helper function to test GLSL to HLSL translation with explicit shader type
+    fn test_glsl_to_hlsl_with_type(glsl_code: &str, expected_hlsl_parts: &[&str], shader_type: ShaderType) -> String {
         let translation_unit = ast::TranslationUnit::parse(glsl_code)
             .expect("GLSL code should parse successfully");
         
         let mut translator = HLSLTranslator::new();
-        let hlsl_result = translator.translate_translation_unit(&translation_unit)
+        let hlsl_result = translator.translate_translation_unit(&translation_unit, shader_type)
             .expect("Translation should succeed");
         
         for expected_part in expected_hlsl_parts {
@@ -500,6 +500,16 @@ mod hlsl_translation_tests {
         }
         
         hlsl_result
+    }
+
+    /// Helper function to test GLSL to HLSL translation with Fragment shader as default
+    fn test_glsl_to_hlsl_fragment(glsl_code: &str, expected_hlsl_parts: &[&str]) -> String {
+        test_glsl_to_hlsl_with_type(glsl_code, expected_hlsl_parts, ShaderType::Fragment)
+    }
+
+    /// Helper function for backward compatibility (defaults to Fragment shader)
+    fn test_glsl_to_hlsl(glsl_code: &str, expected_hlsl_parts: &[&str]) -> String {
+        test_glsl_to_hlsl_with_type(glsl_code, expected_hlsl_parts, ShaderType::Fragment)
     }
 
     #[test]
@@ -528,7 +538,7 @@ mod hlsl_translation_tests {
             "float alpha = color.a"
         ];
         
-        test_glsl_to_hlsl(glsl_code, &expected_parts);
+        test_glsl_to_hlsl(glsl_code, &expected_parts, ShaderType::Fragment);
     }
 
     #[test]
@@ -612,7 +622,7 @@ mod hlsl_translation_tests {
         
         // Note: The current implementation might not fully handle built-in variable translation
         // but we can test that the types are correctly mapped
-        let result = test_glsl_to_hlsl(glsl_code, &["float4 main() : SV_Position"]);
+        let result = test_glsl_to_hlsl(glsl_code, &["float4 main() : SV_Position"], ShaderType::Vertex);
         
         // The built-in variables should be handled specially in a real implementation
         println!("Vertex shader result: {}", result);
@@ -629,7 +639,7 @@ mod hlsl_translation_tests {
             }
         ";
         
-        let result = test_glsl_to_hlsl(glsl_code, &["float4 main() : SV_Target"]);
+        let result = test_glsl_to_hlsl_fragment(glsl_code, &["float4 main() : SV_Target"]);
         
         // Fragment-specific built-ins should map to HLSL semantics
         println!("Fragment shader result: {}", result);

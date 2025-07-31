@@ -245,12 +245,10 @@ impl HLSLTranslator {
     }
 
     /// Translate a GLSL translation unit to HLSL
-    pub fn translate_translation_unit(&mut self, unit: &ast::TranslationUnit) -> Result<String, String> {
+    pub fn translate_translation_unit(&mut self, unit: &ast::TranslationUnit, shader_type: ShaderType) -> Result<String, String> {
         self.output.clear();
         self.indent_level = 0;
-
-        // Detect shader type from function names and built-ins
-        self.detect_shader_type(unit);
+        self.current_shader_type = shader_type;
 
         for external_decl in &unit.0 {
             self.translate_external_declaration(external_decl)?;
@@ -259,20 +257,7 @@ impl HLSLTranslator {
         Ok(self.output.clone())
     }
 
-    /// Detect the type of shader based on the AST content
-    fn detect_shader_type(&mut self, unit: &ast::TranslationUnit) {
-        // Simple heuristic: look for main function and typical variables
-        for external_decl in &unit.0 {
-            if let ast::ExternalDeclarationData::FunctionDefinition(func_def) = &external_decl.content {
-                let func_name = &func_def.content.prototype.content.name.content.0;
-                if func_name == "main" {
-                    // Check the function body for shader-specific built-ins
-                    // This is a simplified detection - in practice you might need more sophisticated logic
-                    self.current_shader_type = ShaderType::Fragment; // Default assumption
-                }
-            }
-        }
-    }
+
 
     /// Translate an external declaration
     fn translate_external_declaration(&mut self, decl: &ast::Node<ast::ExternalDeclarationData>) -> Result<(), String> {
@@ -462,9 +447,10 @@ impl HLSLTranslator {
                             for_parts.push(String::new());
                         }
                     }
-                    ast::ForInitStatementData::Declaration(_decl) => {
-                        // This is a simplified handling - in practice you'd need to format the declaration properly
-                        for_parts.push("/* declaration */".to_string());
+                    ast::ForInitStatementData::Declaration(decl) => {
+                        // Format the declaration for use in for loop
+                        let decl_str = self.format_declaration_for_init(&decl.content)?;
+                        for_parts.push(decl_str);
                     }
                 }
                 
@@ -613,6 +599,15 @@ impl HLSLTranslator {
                     ast::TypeSpecifierNonArrayData::Mat2 => "float2x2",
                     ast::TypeSpecifierNonArrayData::Mat3 => "float3x3",
                     ast::TypeSpecifierNonArrayData::Mat4 => "float4x4",
+                    ast::TypeSpecifierNonArrayData::Mat22 => "float2x2",
+                    ast::TypeSpecifierNonArrayData::Mat23 => "float2x3",
+                    ast::TypeSpecifierNonArrayData::Mat24 => "float2x4",
+                    ast::TypeSpecifierNonArrayData::Mat32 => "float3x2",
+                    ast::TypeSpecifierNonArrayData::Mat33 => "float3x3",
+                    ast::TypeSpecifierNonArrayData::Mat34 => "float3x4",
+                    ast::TypeSpecifierNonArrayData::Mat42 => "float4x2",
+                    ast::TypeSpecifierNonArrayData::Mat43 => "float4x3",
+                    ast::TypeSpecifierNonArrayData::Mat44 => "float4x4",
                     _ => "/* unknown constructor */",
                 }
             }
@@ -792,6 +787,87 @@ impl HLSLTranslator {
         
         self.writeln(&decl_line)?;
         Ok(())
+    }
+
+    /// Format a declaration for use in for loop initialization (returns string without semicolon)
+    fn format_declaration_for_init(&mut self, decl: &ast::DeclarationData) -> Result<String, String> {
+        match decl {
+            ast::DeclarationData::InitDeclaratorList(init_list) => {
+                self.format_init_declarator_list_for_init(&init_list.content)
+            }
+            _ => Ok("/* complex declaration */".to_string())
+        }
+    }
+
+    /// Format an init declarator list for use in for loop initialization (no semicolon, returns string)
+    fn format_init_declarator_list_for_init(&mut self, init_list: &ast::InitDeclaratorListData) -> Result<String, String> {
+        // Get the base type
+        let base_type = self.glsl_type_to_hlsl(&init_list.head.ty.content.ty.content)?;
+        
+        // Handle qualifiers (uniform, in, out, etc.)
+        let mut qualifiers = Vec::new();
+        
+        if let Some(qualifier) = &init_list.head.ty.content.qualifier {
+            qualifiers.extend(self.translate_type_qualifiers(&qualifier.content));
+        }
+        
+        // Format the declaration
+        let mut decl_line = String::new();
+        if !qualifiers.is_empty() {
+            decl_line.push_str(&qualifiers.join(" "));
+            decl_line.push(' ');
+        }
+        decl_line.push_str(&base_type);
+        decl_line.push(' ');
+        
+        // Handle the declarator(s)
+        let mut declarations = Vec::new();
+        
+        // First declarator
+        if let Some(name) = &init_list.head.name {
+            let mut var_decl = name.content.0.to_string();
+            
+            // Handle array specifier
+            if let Some(array_spec) = &init_list.head.array_specifier {
+                for dimension in &array_spec.content.dimensions {
+                    match &dimension.content {
+                        ast::ArraySpecifierDimensionData::Unsized => {
+                            var_decl.push_str("[]");
+                        }
+                        ast::ArraySpecifierDimensionData::ExplicitlySized(expr) => {
+                            let size_expr = self.translate_expression(&expr.content)?;
+                            var_decl.push_str(&format!("[{}]", size_expr));
+                        }
+                    }
+                }
+            }
+            
+            // Handle initializer
+            if let Some(initializer) = &init_list.head.initializer {
+                let init_expr = self.translate_initializer(&initializer.content)?;
+                var_decl.push_str(&format!(" = {}", init_expr));
+            }
+            
+            declarations.push(var_decl);
+        }
+        
+        // Additional declarators (unlikely in for loop, but handle anyway)
+        for declarator in &init_list.tail {
+            let mut var_decl = declarator.content.ident.content.ident.content.0.to_string();
+            
+            // Handle initializer for additional declarators
+            if let Some(initializer) = &declarator.content.initializer {
+                let init_expr = self.translate_initializer(&initializer.content)?;
+                var_decl.push_str(&format!(" = {}", init_expr));
+            }
+            
+            declarations.push(var_decl);
+        }
+        
+        decl_line.push_str(&declarations.join(", "));
+        // Note: No semicolon here since this is for for-loop initialization
+        
+        Ok(decl_line)
     }
 
     /// Translate type qualifiers
