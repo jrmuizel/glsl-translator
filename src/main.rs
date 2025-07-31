@@ -78,7 +78,13 @@ fn main() {
                         // Try HLSL translation
                         println!("\n--- HLSL Translation ---");
                         let mut hlsl_translator = HLSLTranslator::new();
-                        match hlsl_translator.translate_translation_unit(&translation_unit) {
+                        // Determine shader type based on test name or content
+                        let shader_type = if test_name.contains("vertex") {
+                            hlsl_translator::ShaderType::Vertex
+                        } else {
+                            hlsl_translator::ShaderType::Fragment
+                        };
+                        match hlsl_translator.translate_translation_unit_with_type(&translation_unit, shader_type) {
                             Ok(hlsl_code) => {
                                 println!("✓ HLSL translation successful!");
                                 println!("HLSL Output:");
@@ -158,7 +164,8 @@ fn main() {
         match ast::TranslationUnit::parse(glsl_code) {
             Ok(translation_unit) => {
                 let mut hlsl_translator = HLSLTranslator::new();
-                match hlsl_translator.translate_translation_unit(&translation_unit) {
+                // Default to fragment shader for test examples
+                match hlsl_translator.translate_translation_unit_with_type(&translation_unit, hlsl_translator::ShaderType::Fragment) {
                     Ok(hlsl_code) => {
                         println!("GLSL Input:");
                         println!("{}", glsl_code.trim());
