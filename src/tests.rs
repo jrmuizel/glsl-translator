@@ -954,4 +954,52 @@ mod hlsl_translation_tests {
             }
         }
     }
+
+    #[test]
+    fn test_translate_with_shader_type_parameter() {
+        let glsl_code = r"
+            void main() {
+                vec4 color = vec4(1.0, 0.5, 0.2, 1.0);
+            }
+        ";
+        
+        let translation_unit = ast::TranslationUnit::parse(glsl_code)
+            .expect("GLSL code should parse successfully");
+        
+        let mut translator = HLSLTranslator::new();
+        
+        // Test with explicit vertex shader type
+        let hlsl_vertex = translator.translate_translation_unit_with_type(&translation_unit, ShaderType::Vertex)
+            .expect("Translation with vertex shader type should succeed");
+        
+        // Reset translator for next test
+        translator = HLSLTranslator::new();
+        
+        // Test with explicit fragment shader type
+        let hlsl_fragment = translator.translate_translation_unit_with_type(&translation_unit, ShaderType::Fragment)
+            .expect("Translation with fragment shader type should succeed");
+        
+        // Reset translator for next test
+        translator = HLSLTranslator::new();
+        
+        // Test with compute shader type
+        let hlsl_compute = translator.translate_translation_unit_with_type(&translation_unit, ShaderType::Compute)
+            .expect("Translation with compute shader type should succeed");
+        
+        // Verify that the shader type affects the translation (at minimum, the output should not be empty)
+        assert!(!hlsl_vertex.is_empty(), "Vertex shader translation should not be empty");
+        assert!(!hlsl_fragment.is_empty(), "Fragment shader translation should not be empty");
+        assert!(!hlsl_compute.is_empty(), "Compute shader translation should not be empty");
+        
+        // Verify that the translator's current_shader_type is set correctly
+        translator = HLSLTranslator::new();
+        let _ = translator.translate_translation_unit_with_type(&translation_unit, ShaderType::Vertex);
+        assert_eq!(translator.current_shader_type, ShaderType::Vertex);
+        
+        let _ = translator.translate_translation_unit_with_type(&translation_unit, ShaderType::Fragment);
+        assert_eq!(translator.current_shader_type, ShaderType::Fragment);
+        
+        let _ = translator.translate_translation_unit_with_type(&translation_unit, ShaderType::Compute);
+        assert_eq!(translator.current_shader_type, ShaderType::Compute);
+    }
 }

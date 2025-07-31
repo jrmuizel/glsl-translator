@@ -259,6 +259,21 @@ impl HLSLTranslator {
         Ok(self.output.clone())
     }
 
+    /// Translate a GLSL translation unit to HLSL with a specified shader type
+    pub fn translate_translation_unit_with_type(&mut self, unit: &ast::TranslationUnit, shader_type: ShaderType) -> Result<String, String> {
+        self.output.clear();
+        self.indent_level = 0;
+
+        // Use the provided shader type instead of detecting it
+        self.current_shader_type = shader_type;
+
+        for external_decl in &unit.0 {
+            self.translate_external_declaration(external_decl)?;
+        }
+
+        Ok(self.output.clone())
+    }
+
     /// Detect the type of shader based on the AST content
     fn detect_shader_type(&mut self, unit: &ast::TranslationUnit) {
         // Simple heuristic: look for main function and typical variables
