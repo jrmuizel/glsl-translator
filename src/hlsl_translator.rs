@@ -616,9 +616,17 @@ impl HLSLTranslator {
                     _ => "/* unknown constructor */",
                 }
             }
-            ast::FunIdentifierData::Expr(_) => {
-                // This is a complex case, simplified for now
-                return Ok("/* complex function call */".to_string());
+            ast::FunIdentifierData::Expr(expr) => {
+                // Handle function name expressions - typically simple identifiers
+                match &expr.content {
+                    ast::ExprData::Variable(identifier) => {
+                        &identifier.content.0
+                    }
+                    _ => {
+                        // Complex function expressions - for now return placeholder
+                        return Ok("/* complex function call */".to_string());
+                    }
+                }
             }
         };
 
