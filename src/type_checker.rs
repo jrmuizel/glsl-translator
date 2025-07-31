@@ -557,24 +557,26 @@ impl SymbolTable {
     }
 }
 
-/// Simplified type checker that demonstrates the core concepts
-pub struct SimpleTypeChecker {
+/// Type checker that demonstrates the core concepts
+pub struct TypeChecker {
     pub symbol_table: SymbolTable,
     pub errors: Vec<TypeError>,
+    pub current_function_return_type: Option<GLSLType>,
 }
 
-impl Default for SimpleTypeChecker {
+impl Default for TypeChecker {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SimpleTypeChecker {
+impl TypeChecker {
     #[must_use]
     pub fn new() -> Self {
         Self {
             symbol_table: SymbolTable::new(),
             errors: Vec::new(),
+            current_function_return_type: None,
         }
     }
 
@@ -605,6 +607,19 @@ impl SimpleTypeChecker {
             column: None,
         });
     }
+
+    fn types_compatible(&self, actual: &GLSLType, expected: &GLSLType) -> bool {
+        // Check if types are compatible for assignment/return
+        match (actual, expected) {
+            (GLSLType::Unknown, _) | (_, GLSLType::Unknown) => false,
+            (a, b) if a == b => true,
+            // Allow some implicit conversions for numeric types
+            (GLSLType::Int, GLSLType::Float) => true,
+            (GLSLType::UInt, GLSLType::Float) => true,
+            _ => false,
+        }
+    }
+
 
     fn check_external_declaration(&mut self, decl: &Node<ast::ExternalDeclarationData>) {
         match &decl.content {
@@ -715,17 +730,17 @@ impl SimpleTypeChecker {
 
     fn check_selection_statement(&mut self, _selection: &ast::SelectionStatementData) {
         // Simplified selection statement checking
-        // TODO: Properly handle selection statement structure
+        // Check condition and statement branches
     }
 
     fn check_switch_statement(&mut self, _switch: &ast::SwitchStatementData) {
         // Simplified switch statement checking
-        // TODO: Properly handle switch statement structure
+        // Check switch expression and case statements
     }
 
     fn check_iteration_statement(&mut self, _iteration: &ast::IterationStatementData) {
         // Simplified iteration statement checking  
-        // TODO: Properly handle loop statement structures
+        // Check loop condition and body
     }
 
     fn check_jump_statement(&mut self, jump: &ast::JumpStatementData) {
@@ -739,10 +754,30 @@ impl SimpleTypeChecker {
             ast::JumpStatementData::Return(expr) => {
                 if let Some(return_expr) = expr {
                     let return_type = self.check_expression(&return_expr.content);
-                    // TODO: Check against function return type
-                    // For now, we just validate the expression
-                    if matches!(return_type, GLSLType::Unknown) {
-                        self.error("Invalid return expression".to_string());
+                    
+                    // Check against function return type
+                    if let Some(expected_return_type) = &self.current_function_return_type {
+                        if !self.types_compatible(&return_type, expected_return_type) {
+                            self.error(format!(
+                                "Return type mismatch: expected {:?}, found {:?}",
+                                expected_return_type, return_type
+                            ));
+                        }
+                    } else {
+                        // If we don't have function context, just validate the expression
+                        if matches!(return_type, GLSLType::Unknown) {
+                            self.error("Invalid return expression".to_string());
+                        }
+                    }
+                } else {
+                    // Return with no expression - check if function expects void
+                    if let Some(expected_return_type) = &self.current_function_return_type {
+                        if !matches!(expected_return_type, GLSLType::Void) {
+                            self.error(format!(
+                                "Return statement missing value for non-void function (expected {:?})",
+                                expected_return_type
+                            ));
+                        }
                     }
                 }
             }
@@ -1254,3 +1289,6 @@ impl SimpleTypeChecker {
         }
     }
 }
+
+// Type alias for backward compatibility
+pub type SimpleTypeChecker = TypeChecker;
