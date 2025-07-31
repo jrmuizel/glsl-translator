@@ -1,7 +1,7 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod tests {
-    use crate::simple_type_checker::*;
+    use crate::type_checker::*;
     use glsl_lang::ast;
     use glsl_lang::parse::Parsable;
 
@@ -175,7 +175,7 @@ mod tests {
         ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
-        let mut type_checker = SimpleTypeChecker::new();
+        let mut type_checker = TypeChecker::new();
 
         assert!(type_checker
             .check_translation_unit(&translation_unit)
@@ -196,7 +196,7 @@ mod tests {
         ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
-        let mut type_checker = SimpleTypeChecker::new();
+        let mut type_checker = TypeChecker::new();
 
         assert!(type_checker
             .check_translation_unit(&translation_unit)
@@ -215,7 +215,7 @@ mod tests {
         ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
-        let mut type_checker = SimpleTypeChecker::new();
+        let mut type_checker = TypeChecker::new();
 
         let result = type_checker.check_translation_unit(&translation_unit);
         if let Err(errors) = &result {
@@ -240,7 +240,7 @@ mod tests {
         ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
-        let mut type_checker = SimpleTypeChecker::new();
+        let mut type_checker = TypeChecker::new();
 
         let result = type_checker.check_translation_unit(&translation_unit);
         // The simplified type checker may not fully handle function calls,
@@ -258,7 +258,7 @@ mod tests {
         ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
-        let mut type_checker = SimpleTypeChecker::new();
+        let mut type_checker = TypeChecker::new();
 
         let result = type_checker.check_translation_unit(&translation_unit);
         // This might pass in the simplified checker, but demonstrates error testing framework
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_type_checker_new() {
-        let type_checker = SimpleTypeChecker::new();
+        let type_checker = TypeChecker::new();
         assert!(type_checker.errors.is_empty());
         assert!(!type_checker.symbol_table.scopes.is_empty());
         assert!(type_checker.symbol_table.lookup_function("sin").is_some());
@@ -321,7 +321,7 @@ mod tests {
         let empty_glsl = "";
         let translation_unit = ast::TranslationUnit::parse(empty_glsl);
         if let Ok(tu) = translation_unit {
-            let mut type_checker = SimpleTypeChecker::new();
+            let mut type_checker = TypeChecker::new();
             assert!(type_checker.check_translation_unit(&tu).is_ok());
         }
     }
@@ -338,7 +338,7 @@ mod tests {
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code);
         if let Ok(tu) = translation_unit {
-            let mut type_checker = SimpleTypeChecker::new();
+            let mut type_checker = TypeChecker::new();
             // Test that we can handle the parsing even if type checking is simplified
             let _result = type_checker.check_translation_unit(&tu);
         }
@@ -441,7 +441,7 @@ mod tests {
         ";
 
         let translation_unit = ast::TranslationUnit::parse(glsl_code).unwrap();
-        let mut type_checker = SimpleTypeChecker::new();
+        let mut type_checker = TypeChecker::new();
 
         assert!(type_checker
             .check_translation_unit(&translation_unit)

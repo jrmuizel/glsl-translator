@@ -1,8 +1,8 @@
 use glsl_lang::ast;
 use glsl_lang::parse::Parsable;
 
-mod simple_type_checker;
-use simple_type_checker::SimpleTypeChecker;
+mod type_checker;
+use type_checker::TypeChecker;
 
 #[allow(clippy::too_many_lines)]
 fn main() {
@@ -97,7 +97,7 @@ fn main() {
                 println!("✓ Parsing successful");
 
                 // Create a type checker and check the AST
-                let mut type_checker = SimpleTypeChecker::new();
+                let mut type_checker = TypeChecker::new();
 
                 match type_checker.check_translation_unit(&translation_unit) {
                     Ok(()) => {
