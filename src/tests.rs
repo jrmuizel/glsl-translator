@@ -447,4 +447,511 @@ mod tests {
             .check_translation_unit(&translation_unit)
             .is_ok());
     }
+
+    #[test]
+    fn test_error_reporting() {
+        let src = r"
+            void main() {
+                float x = vec3(1.0, 2.0, 3.0); // Type mismatch error
+                int y = x + true; // Another type error
+            }
+        ";
+        
+        match ast::TranslationUnit::parse(src) {
+            Ok(ast) => {
+                let mut checker = TypeChecker::new();
+                let result = checker.check_translation_unit(&ast);
+                match result {
+                    Err(errors) => {
+                        assert!(!errors.is_empty(), "Should have type errors");
+                        assert!(errors.len() >= 2, "Should have at least 2 errors");
+                    }
+                    Ok(()) => panic!("Should have type errors but none were found"),
+                }
+            }
+            Err(_) => panic!("Should parse successfully"),
+        }
+    }
+}
+
+// New comprehensive tests for GLSL to HLSL translation challenging cases
+#[cfg(test)]
+mod hlsl_translation_tests {
+    use crate::hlsl_translator::*;
+    use glsl_lang::ast;
+    use glsl_lang::parse::Parsable;
+
+    /// Helper function to test GLSL to HLSL translation
+    fn test_glsl_to_hlsl(glsl_code: &str, expected_hlsl_parts: &[&str]) -> String {
+        let translation_unit = ast::TranslationUnit::parse(glsl_code)
+            .expect("GLSL code should parse successfully");
+        
+        let mut translator = HLSLTranslator::new();
+        let hlsl_result = translator.translate_translation_unit(&translation_unit)
+            .expect("Translation should succeed");
+        
+        for expected_part in expected_hlsl_parts {
+            assert!(
+                hlsl_result.contains(expected_part),
+                "HLSL output should contain '{}'\nActual output:\n{}",
+                expected_part,
+                hlsl_result
+            );
+        }
+        
+        hlsl_result
+    }
+
+    #[test]
+    fn test_vector_swizzling_complex_patterns() {
+        let glsl_code = r"
+            void main() {
+                vec4 color = vec4(1.0, 0.5, 0.2, 1.0);
+                vec3 rgb = color.rgb;
+                vec2 rg = color.xy;
+                vec4 bgra = color.bgra;
+                vec3 rrr = color.rrr;
+                vec4 wzyx = color.wzyx;
+                float r = color.r;
+                float alpha = color.a;
+            }
+        ";
+        
+        let expected_parts = vec![
+            "float4 color = float4(1.0, 0.5, 0.2, 1.0)",
+            "float3 rgb = color.rgb",
+            "float2 rg = color.xy", 
+            "float4 bgra = color.bgra",
+            "float3 rrr = color.rrr",
+            "float4 wzyx = color.wzyx",
+            "float r = color.r",
+            "float alpha = color.a"
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_texture_sampling_functions() {
+        let glsl_code = r"
+            uniform sampler2D diffuseTexture;
+            uniform sampler3D volumeTexture;
+            uniform samplerCube envTexture;
+            uniform sampler2DArray textureArray;
+            
+            void main() {
+                vec2 uv = vec2(0.5, 0.5);
+                vec3 uvw = vec3(0.5, 0.5, 0.5);
+                vec4 color1 = texture(diffuseTexture, uv);
+                vec4 color2 = textureLod(diffuseTexture, uv, 2.0);
+                vec4 color3 = textureGrad(diffuseTexture, uv, vec2(0.1), vec2(0.1));
+                vec4 color4 = texelFetch(diffuseTexture, ivec2(10, 20), 0);
+                ivec2 size = textureSize(diffuseTexture, 0);
+                vec4 color5 = texture(volumeTexture, uvw);
+                vec4 color6 = texture(envTexture, uvw);
+            }
+        ";
+        
+        let expected_parts = vec![
+            "Texture2D diffuseTexture",
+            "Texture3D volumeTexture", 
+            "TextureCube envTexture",
+            "Texture2DArray textureArray",
+            "float2 uv = float2(0.5, 0.5)",
+            "float3 uvw = float3(0.5, 0.5, 0.5)",
+            "Sample(", // texture() maps to Sample()
+            "SampleLevel(", // textureLod() maps to SampleLevel()
+            "SampleGrad(", // textureGrad() maps to SampleGrad()
+            "Load(", // texelFetch() maps to Load()
+            "GetDimensions" // textureSize() maps to GetDimensions()
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_matrix_operations_and_constructors() {
+        let glsl_code = r"
+            void main() {
+                mat4 mvp = mat4(1.0);
+                mat3 rotation = mat3(1.0, 0.0, 0.0,
+                                    0.0, 1.0, 0.0,
+                                    0.0, 0.0, 1.0);
+                mat2x3 transform = mat2x3(1.0, 0.0, 0.0,
+                                         0.0, 1.0, 0.0);
+                mat4x2 custom = mat4x2(1.0, 0.0,
+                                      0.0, 1.0,
+                                      0.0, 0.0,
+                                      0.0, 0.0);
+                vec4 transformed = mvp * vec4(1.0, 2.0, 3.0, 1.0);
+                vec3 rotated = rotation * vec3(1.0, 0.0, 0.0);
+            }
+        ";
+        
+        let expected_parts = vec![
+            "float4x4 mvp = float4x4(1.0)",
+            "float3x3 rotation = float3x3(",
+            "float2x3 transform = float2x3(",
+            "float4x2 custom = float4x2(",
+            "float4 transformed = mvp * float4(1.0, 2.0, 3.0, 1.0)",
+            "float3 rotated = rotation * float3(1.0, 0.0, 0.0)"
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_builtin_variables_vertex_shader() {
+        let glsl_code = r"
+            void main() {
+                gl_Position = vec4(1.0, 2.0, 3.0, 1.0);
+                int vertexID = gl_VertexID;
+                int instanceID = gl_InstanceID;
+            }
+        ";
+        
+        // Note: The current implementation might not fully handle built-in variable translation
+        // but we can test that the types are correctly mapped
+        let result = test_glsl_to_hlsl(glsl_code, &["float4 main() : SV_Position"]);
+        
+        // The built-in variables should be handled specially in a real implementation
+        println!("Vertex shader result: {}", result);
+    }
+
+    #[test]
+    fn test_builtin_variables_fragment_shader() {
+        let glsl_code = r"
+            void main() {
+                gl_FragColor = vec4(1.0, 0.5, 0.2, 1.0);
+                vec4 fragCoord = gl_FragCoord;
+                bool frontFacing = gl_FrontFacing;
+                gl_FragDepth = 0.5;
+            }
+        ";
+        
+        let result = test_glsl_to_hlsl(glsl_code, &["float4 main() : SV_Target"]);
+        
+        // Fragment-specific built-ins should map to HLSL semantics
+        println!("Fragment shader result: {}", result);
+    }
+
+    #[test]
+    fn test_atomic_operations() {
+        let glsl_code = r"
+            uniform int counter;
+            void main() {
+                int oldValue = atomicAdd(counter, 1);
+                int andResult = atomicAnd(counter, 0xFF);
+                int orResult = atomicOr(counter, 0x10);
+                int xorResult = atomicXor(counter, 0x55);
+                int minResult = atomicMin(counter, 100);
+                int maxResult = atomicMax(counter, 50);
+                int exchanged = atomicExchange(counter, 42);
+                int compared = atomicCompSwap(counter, 42, 84);
+            }
+        ";
+        
+        let expected_parts = vec![
+            "InterlockedAdd(",
+            "InterlockedAnd(",
+            "InterlockedOr(",
+            "InterlockedXor(",
+            "InterlockedMin(",
+            "InterlockedMax(",
+            "InterlockedExchange(",
+            "InterlockedCompareExchange("
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_derivative_functions() {
+        let glsl_code = r"
+            void main() {
+                float value = 0.5;
+                float dx = dFdx(value);
+                float dy = dFdy(value);
+                float dxCoarse = dFdxCoarse(value);
+                float dyCoarse = dFdyCoarse(value);
+                float dxFine = dFdxFine(value);
+                float dyFine = dFdyFine(value);
+            }
+        ";
+        
+        let expected_parts = vec![
+            "ddx(",
+            "ddy(",
+            "ddx_coarse(",
+            "ddy_coarse(",
+            "ddx_fine(",
+            "ddy_fine("
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_interpolation_functions() {
+        let glsl_code = r"
+            in vec4 vertexColor;
+            void main() {
+                vec4 centroid = interpolateAtCentroid(vertexColor);
+                vec4 sample = interpolateAtSample(vertexColor, 2);
+                vec4 offset = interpolateAtOffset(vertexColor, vec2(0.1, 0.1));
+            }
+        ";
+        
+        let expected_parts = vec![
+            "EvaluateAttributeAtCentroid(",
+            "EvaluateAttributeAtSample(",
+            "EvaluateAttributeSnapped("
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_math_function_mappings() {
+        let glsl_code = r"
+            void main() {
+                float x = 1.5;
+                float fractional = fract(x);
+                float mixed = mix(0.0, 1.0, 0.5);
+                float invSqrt = inversesqrt(x);
+                float lerped = mix(x, x * 2.0, 0.3);
+            }
+        ";
+        
+        let expected_parts = vec![
+            "frac(",  // fract() -> frac()
+            "lerp(",  // mix() -> lerp()
+            "rsqrt(" // inversesqrt() -> rsqrt()
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_barrier_functions() {
+        let glsl_code = r"
+            void main() {
+                barrier();
+                memoryBarrier();
+                groupMemoryBarrier();
+            }
+        ";
+        
+        let expected_parts = vec![
+            "GroupMemoryBarrierWithGroupSync(",
+            "DeviceMemoryBarrier(",
+            "GroupMemoryBarrier("
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_precision_qualifiers_handling() {
+        let glsl_code = r"
+            precision mediump float;
+            precision highp int;
+            precision lowp vec3;
+            
+            void main() {
+                mediump float x = 1.0;
+                highp vec3 position = vec3(0.0);
+                lowp vec4 color = vec4(1.0);
+            }
+        ";
+        
+        // HLSL doesn't have precision qualifiers, so they should be handled gracefully
+        let result = test_glsl_to_hlsl(glsl_code, &[]);
+        
+        // Should contain comments about GLSL-specific features
+        assert!(result.contains("Precision qualifier"));
+        println!("Precision handling result: {}", result);
+    }
+
+    #[test]
+    fn test_array_operations_and_length() {
+        let glsl_code = r"
+            void main() {
+                float values[5] = float[5](1.0, 2.0, 3.0, 4.0, 5.0);
+                int dynamicArray[] = int[](1, 2, 3, 4);
+                int size = values.length();
+                float first = values[0];
+                values[1] = 10.0;
+            }
+        ";
+        
+        let expected_parts = vec![
+            "float values[5]",
+            "int dynamicArray[]"
+        ];
+        
+        // Note: HLSL doesn't have a .length() method for arrays like GLSL
+        // This is a challenging translation case that requires special handling
+        let result = test_glsl_to_hlsl(glsl_code, &expected_parts);
+        println!("Array operations result: {}", result);
+    }
+
+    #[test]
+    fn test_uniform_block_translation() {
+        let glsl_code = r"
+            uniform Transform {
+                mat4 modelMatrix;
+                mat4 viewMatrix;
+                mat4 projectionMatrix;
+                vec3 lightPosition;
+            } transform;
+            
+            void main() {
+                vec4 worldPos = transform.modelMatrix * vec4(1.0, 0.0, 0.0, 1.0);
+                vec4 viewPos = transform.viewMatrix * worldPos;
+                vec4 clipPos = transform.projectionMatrix * viewPos;
+                vec3 lightDir = normalize(transform.lightPosition - worldPos.xyz);
+            }
+        ";
+        
+        // Uniform blocks are challenging in GLSL->HLSL translation
+        // HLSL uses cbuffer instead of uniform blocks
+        let result = test_glsl_to_hlsl(glsl_code, &[]);
+        
+        // Should handle block declarations somehow
+        assert!(result.contains("Block declaration"));
+        println!("Uniform block result: {}", result);
+    }
+
+    #[test]
+    fn test_complex_expression_combinations() {
+        let glsl_code = r"
+            void main() {
+                vec3 a = vec3(1.0, 2.0, 3.0);
+                vec3 b = vec3(4.0, 5.0, 6.0);
+                
+                // Complex swizzling and arithmetic
+                vec3 result = a.xyz * b.zyx + a.yyy - b.xxx;
+                
+                // Ternary operations with vectors
+                vec3 conditional = a.x > b.y ? a.rgb : b.bgr;
+                
+                // Mixed scalar and vector operations
+                float scalar = dot(a, b) * length(a) + distance(a, b);
+                
+                // Matrix-vector combinations
+                mat3 rotation = mat3(1.0);
+                vec3 transformed = rotation * (a + b) * scalar;
+                
+                // Function call chains
+                vec3 normalized = normalize(cross(a, b));
+                float angle = acos(clamp(dot(normalize(a), normalize(b)), -1.0, 1.0));
+            }
+        ";
+        
+        let expected_parts = vec![
+            "float3 a = float3(1.0, 2.0, 3.0)",
+            "float3 b = float3(4.0, 5.0, 6.0)",
+            "a.xyz * b.zyx + a.yyy - b.xxx",
+            "a.x > b.y ? a.rgb : b.bgr",
+            "dot(a, b)",
+            "length(a)",
+            "distance(a, b)",
+            "float3x3 rotation = float3x3(1.0)",
+            "normalize(cross(a, b))",
+            "acos(clamp("
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_control_flow_translation() {
+        let glsl_code = r"
+            void main() {
+                for (int i = 0; i < 10; i++) {
+                    if (i % 2 == 0) {
+                        continue;
+                    }
+                    
+                    vec3 color = vec3(float(i) / 10.0);
+                    
+                    if (color.r > 0.5) {
+                        color = mix(color, vec3(1.0), 0.5);
+                    } else {
+                        color = color * 0.8;
+                    }
+                    
+                    if (i > 7) {
+                        break;
+                    }
+                }
+                
+                int j = 0;
+                while (j < 5) {
+                    j++;
+                    if (j == 3) {
+                        discard;
+                    }
+                }
+            }
+        ";
+        
+        let expected_parts = vec![
+            "for (int i = 0; i < 10; i++)",
+            "if (i % 2 == 0)",
+            "continue;",
+            "float3 color = float3(float(i) / 10.0)",
+            "lerp(color, float3(1.0), 0.5)", // mix() -> lerp()
+            "break;",
+            "while (j < 5)",
+            "discard;"
+        ];
+        
+        test_glsl_to_hlsl(glsl_code, &expected_parts);
+    }
+
+    #[test]
+    fn test_edge_cases_and_error_conditions() {
+        // Test unsupported GLSL features that should be handled gracefully
+        let glsl_code = r"
+            #version 330 core
+            
+            // Test interface blocks (should be handled)
+            out gl_PerVertex {
+                vec4 gl_Position;
+                float gl_PointSize;
+            };
+            
+            void main() {
+                // Test unsupported operations
+                gl_Position = vec4(0.0);
+                gl_PointSize = 1.0;
+            }
+        ";
+        
+        // This should not crash the translator, even if not fully supported
+        let translation_unit = ast::TranslationUnit::parse(glsl_code);
+        match translation_unit {
+            Ok(ast) => {
+                let mut translator = HLSLTranslator::new();
+                let result = translator.translate_translation_unit(&ast);
+                // Should either succeed or fail gracefully
+                match result {
+                    Ok(hlsl) => {
+                        println!("Edge case translation succeeded: {}", hlsl);
+                        assert!(!hlsl.is_empty());
+                    }
+                    Err(error) => {
+                        println!("Edge case translation failed gracefully: {}", error);
+                        assert!(!error.is_empty());
+                    }
+                }
+            }
+            Err(_) => {
+                // Some edge cases might not parse, which is acceptable
+                println!("Edge case did not parse (acceptable)");
+            }
+        }
+    }
 }

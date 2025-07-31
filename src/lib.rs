@@ -6,3 +6,6 @@ pub use hlsl_translator::*;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod stress_tests;
