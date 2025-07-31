@@ -261,17 +261,210 @@ impl HLSLTranslator {
 
     /// Detect the type of shader based on the AST content
     fn detect_shader_type(&mut self, unit: &ast::TranslationUnit) {
-        // Simple heuristic: look for main function and typical variables
+        // Look for shader-specific built-ins in the main function
         for external_decl in &unit.0 {
             if let ast::ExternalDeclarationData::FunctionDefinition(func_def) = &external_decl.content {
                 let func_name = &func_def.content.prototype.content.name.content.0;
                 if func_name == "main" {
                     // Check the function body for shader-specific built-ins
-                    // This is a simplified detection - in practice you might need more sophisticated logic
-                    self.current_shader_type = ShaderType::Fragment; // Default assumption
+                    if self.contains_vertex_builtins(&func_def.content.statement.content) {
+                        self.current_shader_type = ShaderType::Vertex;
+                    } else if self.contains_fragment_builtins(&func_def.content.statement.content) {
+                        self.current_shader_type = ShaderType::Fragment;
+                    } else {
+                        self.current_shader_type = ShaderType::Fragment; // Default assumption
+                    }
                 }
             }
         }
+    }
+
+    /// Check if the compound statement contains vertex shader built-ins like gl_Position
+    fn contains_vertex_builtins(&self, stmt: &ast::CompoundStatementData) -> bool {
+        for statement in &stmt.statement_list {
+            if self.statement_contains_vertex_builtins(&statement.content) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Check if the compound statement contains fragment shader built-ins like gl_FragColor
+    fn contains_fragment_builtins(&self, stmt: &ast::CompoundStatementData) -> bool {
+        for statement in &stmt.statement_list {
+            if self.statement_contains_fragment_builtins(&statement.content) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Check if a statement contains vertex shader built-ins like gl_Position
+    fn statement_contains_vertex_builtins(&self, stmt: &ast::StatementData) -> bool {
+        match stmt {
+            ast::StatementData::Compound(compound) => {
+                self.contains_vertex_builtins(&compound.content)
+            }
+            ast::StatementData::Expression(expr_stmt) => {
+                if let Some(expr_node) = &expr_stmt.content.0 {
+                    self.expression_contains_variable(&expr_node.content, "gl_Position")
+                } else {
+                    false
+                }
+            }
+            ast::StatementData::Selection(selection) => {
+                self.expression_contains_variable(&selection.content.cond.content, "gl_Position")
+                // Note: Selection statements have complex structure, simplified for now
+            }
+            ast::StatementData::Iteration(iteration) => {
+                // Note: Iteration statements have complex structure, simplified for now
+                match &iteration.content {
+                    ast::IterationStatementData::While(condition, stmt) => {
+                        self.condition_contains_variable(&condition.content, "gl_Position") ||
+                        self.statement_contains_vertex_builtins(&stmt.content)
+                    }
+                    ast::IterationStatementData::DoWhile(stmt, condition) => {
+                        self.statement_contains_vertex_builtins(&stmt.content) ||
+                        self.expression_contains_variable(&condition.content, "gl_Position")
+                    }
+                    ast::IterationStatementData::For(init, rest, stmt) => {
+                        self.for_init_contains_variable(init, "gl_Position") ||
+                        self.for_rest_contains_variable(rest, "gl_Position") ||
+                        self.statement_contains_vertex_builtins(&stmt.content)
+                    }
+                }
+            }
+            _ => false
+        }
+    }
+
+    /// Check if a statement contains fragment shader built-ins like gl_FragColor
+    fn statement_contains_fragment_builtins(&self, stmt: &ast::StatementData) -> bool {
+        match stmt {
+            ast::StatementData::Compound(compound) => {
+                self.contains_fragment_builtins(&compound.content)
+            }
+            ast::StatementData::Expression(expr_stmt) => {
+                if let Some(expr_node) = &expr_stmt.content.0 {
+                    self.expression_contains_variable(&expr_node.content, "gl_FragColor") ||
+                    self.expression_contains_variable(&expr_node.content, "gl_FragDepth")
+                } else {
+                    false
+                }
+            }
+            ast::StatementData::Selection(selection) => {
+                self.expression_contains_variable(&selection.content.cond.content, "gl_FragColor") ||
+                self.expression_contains_variable(&selection.content.cond.content, "gl_FragDepth")
+                // Note: Selection statements have complex structure, simplified for now
+            }
+            ast::StatementData::Iteration(iteration) => {
+                // Note: Iteration statements have complex structure, simplified for now
+                match &iteration.content {
+                    ast::IterationStatementData::While(condition, stmt) => {
+                        self.condition_contains_variable(&condition.content, "gl_FragColor") ||
+                        self.condition_contains_variable(&condition.content, "gl_FragDepth") ||
+                        self.statement_contains_fragment_builtins(&stmt.content)
+                    }
+                    ast::IterationStatementData::DoWhile(stmt, condition) => {
+                        self.statement_contains_fragment_builtins(&stmt.content) ||
+                        self.expression_contains_variable(&condition.content, "gl_FragColor") ||
+                        self.expression_contains_variable(&condition.content, "gl_FragDepth")
+                    }
+                    ast::IterationStatementData::For(init, rest, stmt) => {
+                        self.for_init_contains_variable(init, "gl_FragColor") ||
+                        self.for_init_contains_variable(init, "gl_FragDepth") ||
+                        self.for_rest_contains_variable(rest, "gl_FragColor") ||
+                        self.for_rest_contains_variable(rest, "gl_FragDepth") ||
+                        self.statement_contains_fragment_builtins(&stmt.content)
+                    }
+                }
+            }
+            _ => false
+        }
+    }
+
+    /// Check if an expression contains a specific variable name
+    fn expression_contains_variable(&self, expr: &ast::ExprData, var_name: &str) -> bool {
+        match expr {
+            ast::ExprData::Variable(id) => id.content.0 == var_name,
+            ast::ExprData::Binary(_, left, right) => {
+                self.expression_contains_variable(&left.content, var_name) ||
+                self.expression_contains_variable(&right.content, var_name)
+            }
+            ast::ExprData::Unary(_, expr) => {
+                self.expression_contains_variable(&expr.content, var_name)
+            }
+            ast::ExprData::Ternary(cond, true_expr, false_expr) => {
+                self.expression_contains_variable(&cond.content, var_name) ||
+                self.expression_contains_variable(&true_expr.content, var_name) ||
+                self.expression_contains_variable(&false_expr.content, var_name)
+            }
+            ast::ExprData::Assignment(left, _, right) => {
+                self.expression_contains_variable(&left.content, var_name) ||
+                self.expression_contains_variable(&right.content, var_name)
+            }
+            ast::ExprData::FunCall(func_id, args) => {
+                self.func_id_contains_variable(&func_id.content, var_name) ||
+                args.iter().any(|arg| self.expression_contains_variable(&arg.content, var_name))
+            }
+            ast::ExprData::PostInc(expr) | ast::ExprData::PostDec(expr) => {
+                self.expression_contains_variable(&expr.content, var_name)
+            }
+            ast::ExprData::Bracket(expr, index) => {
+                self.expression_contains_variable(&expr.content, var_name) ||
+                self.expression_contains_variable(&index.content, var_name)
+            }
+            ast::ExprData::Dot(expr, _) => {
+                self.expression_contains_variable(&expr.content, var_name)
+            }
+            _ => false
+        }
+    }
+
+    /// Check if a function identifier contains a variable
+    fn func_id_contains_variable(&self, func_id: &ast::FunIdentifierData, var_name: &str) -> bool {
+        match func_id {
+            ast::FunIdentifierData::Expr(expr) => {
+                self.expression_contains_variable(&expr.content, var_name)
+            }
+            _ => false
+        }
+    }
+
+    /// Check if a condition contains a variable
+    fn condition_contains_variable(&self, condition: &ast::ConditionData, var_name: &str) -> bool {
+        match condition {
+            ast::ConditionData::Expr(expr) => self.expression_contains_variable(&expr.content, var_name),
+            _ => false
+        }
+    }
+
+    /// Check if for loop initialization contains a variable
+    fn for_init_contains_variable(&self, init: &ast::ForInitStatementData, var_name: &str) -> bool {
+        match init {
+            ast::ForInitStatementData::Expression(Some(expr)) => {
+                self.expression_contains_variable(&expr.content, var_name)
+            }
+            ast::ForInitStatementData::Declaration(_) => false, // Variable declarations don't use existing variables
+            _ => false
+        }
+    }
+
+    /// Check if for loop rest statement contains a variable
+    fn for_rest_contains_variable(&self, rest: &ast::ForRestStatementData, var_name: &str) -> bool {
+        let condition_contains = if let Some(condition) = &rest.condition {
+            self.condition_contains_variable(&condition.content, var_name)
+        } else {
+            false
+        };
+        
+        let expr_contains = if let Some(expr) = &rest.post_expr {
+            self.expression_contains_variable(&expr.content, var_name)
+        } else {
+            false
+        };
+        
+        condition_contains || expr_contains
     }
 
     /// Translate an external declaration
@@ -462,9 +655,10 @@ impl HLSLTranslator {
                             for_parts.push(String::new());
                         }
                     }
-                    ast::ForInitStatementData::Declaration(_decl) => {
-                        // This is a simplified handling - in practice you'd need to format the declaration properly
-                        for_parts.push("/* declaration */".to_string());
+                    ast::ForInitStatementData::Declaration(decl) => {
+                        // Format the declaration for use in for loop
+                        let decl_str = self.format_declaration_for_init(&decl.content)?;
+                        for_parts.push(decl_str);
                     }
                 }
                 
@@ -613,6 +807,15 @@ impl HLSLTranslator {
                     ast::TypeSpecifierNonArrayData::Mat2 => "float2x2",
                     ast::TypeSpecifierNonArrayData::Mat3 => "float3x3",
                     ast::TypeSpecifierNonArrayData::Mat4 => "float4x4",
+                    ast::TypeSpecifierNonArrayData::Mat22 => "float2x2",
+                    ast::TypeSpecifierNonArrayData::Mat23 => "float2x3",
+                    ast::TypeSpecifierNonArrayData::Mat24 => "float2x4",
+                    ast::TypeSpecifierNonArrayData::Mat32 => "float3x2",
+                    ast::TypeSpecifierNonArrayData::Mat33 => "float3x3",
+                    ast::TypeSpecifierNonArrayData::Mat34 => "float3x4",
+                    ast::TypeSpecifierNonArrayData::Mat42 => "float4x2",
+                    ast::TypeSpecifierNonArrayData::Mat43 => "float4x3",
+                    ast::TypeSpecifierNonArrayData::Mat44 => "float4x4",
                     _ => "/* unknown constructor */",
                 }
             }
@@ -792,6 +995,87 @@ impl HLSLTranslator {
         
         self.writeln(&decl_line)?;
         Ok(())
+    }
+
+    /// Format a declaration for use in for loop initialization (returns string without semicolon)
+    fn format_declaration_for_init(&mut self, decl: &ast::DeclarationData) -> Result<String, String> {
+        match decl {
+            ast::DeclarationData::InitDeclaratorList(init_list) => {
+                self.format_init_declarator_list_for_init(&init_list.content)
+            }
+            _ => Ok("/* complex declaration */".to_string())
+        }
+    }
+
+    /// Format an init declarator list for use in for loop initialization (no semicolon, returns string)
+    fn format_init_declarator_list_for_init(&mut self, init_list: &ast::InitDeclaratorListData) -> Result<String, String> {
+        // Get the base type
+        let base_type = self.glsl_type_to_hlsl(&init_list.head.ty.content.ty.content)?;
+        
+        // Handle qualifiers (uniform, in, out, etc.)
+        let mut qualifiers = Vec::new();
+        
+        if let Some(qualifier) = &init_list.head.ty.content.qualifier {
+            qualifiers.extend(self.translate_type_qualifiers(&qualifier.content));
+        }
+        
+        // Format the declaration
+        let mut decl_line = String::new();
+        if !qualifiers.is_empty() {
+            decl_line.push_str(&qualifiers.join(" "));
+            decl_line.push(' ');
+        }
+        decl_line.push_str(&base_type);
+        decl_line.push(' ');
+        
+        // Handle the declarator(s)
+        let mut declarations = Vec::new();
+        
+        // First declarator
+        if let Some(name) = &init_list.head.name {
+            let mut var_decl = name.content.0.to_string();
+            
+            // Handle array specifier
+            if let Some(array_spec) = &init_list.head.array_specifier {
+                for dimension in &array_spec.content.dimensions {
+                    match &dimension.content {
+                        ast::ArraySpecifierDimensionData::Unsized => {
+                            var_decl.push_str("[]");
+                        }
+                        ast::ArraySpecifierDimensionData::ExplicitlySized(expr) => {
+                            let size_expr = self.translate_expression(&expr.content)?;
+                            var_decl.push_str(&format!("[{}]", size_expr));
+                        }
+                    }
+                }
+            }
+            
+            // Handle initializer
+            if let Some(initializer) = &init_list.head.initializer {
+                let init_expr = self.translate_initializer(&initializer.content)?;
+                var_decl.push_str(&format!(" = {}", init_expr));
+            }
+            
+            declarations.push(var_decl);
+        }
+        
+        // Additional declarators (unlikely in for loop, but handle anyway)
+        for declarator in &init_list.tail {
+            let mut var_decl = declarator.content.ident.content.ident.content.0.to_string();
+            
+            // Handle initializer for additional declarators
+            if let Some(initializer) = &declarator.content.initializer {
+                let init_expr = self.translate_initializer(&initializer.content)?;
+                var_decl.push_str(&format!(" = {}", init_expr));
+            }
+            
+            declarations.push(var_decl);
+        }
+        
+        decl_line.push_str(&declarations.join(", "));
+        // Note: No semicolon here since this is for for-loop initialization
+        
+        Ok(decl_line)
     }
 
     /// Translate type qualifiers
