@@ -701,9 +701,9 @@ mod hlsl_translation_tests {
         let glsl_code = r"
             in vec4 vertexColor;
             void main() {
-                vec4 centroid = interpolateAtCentroid(vertexColor);
-                vec4 sample = interpolateAtSample(vertexColor, 2);
-                vec4 offset = interpolateAtOffset(vertexColor, vec2(0.1, 0.1));
+                vec4 centroidValue = interpolateAtCentroid(vertexColor);
+                vec4 sampleValue = interpolateAtSample(vertexColor, 2);
+                vec4 offsetValue = interpolateAtOffset(vertexColor, vec2(0.1, 0.1));
             }
         ";
         

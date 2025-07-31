@@ -414,15 +414,53 @@ impl HLSLTranslator {
         let if_line = format!("if ({})", condition);
         self.writeln(&if_line)?;
         
-        // Simplified handling - just translate the statements without worrying about exact structure
-        self.writeln("{")?;
-        self.indent_level += 1;
-        self.writeln("// if statement body")?;
-        self.indent_level -= 1;
-        self.writeln("}")?;
-        
-        // Simplified else handling
-        self.writeln("// else statement handling simplified")?;
+        // Handle the rest of the selection statement
+        match &stmt.rest.content {
+            ast::SelectionRestStatementData::Statement(statement) => {
+                // Just an if statement without else
+                match &statement.content {
+                    ast::StatementData::Compound(compound) => {
+                        self.writeln("{")?;
+                        self.indent_level += 1;
+                        self.translate_compound_statement(&compound.content)?;
+                        self.indent_level -= 1;
+                        self.writeln("}")?;
+                    }
+                    _ => {
+                        self.translate_statement(&statement.content)?;
+                    }
+                }
+            }
+            ast::SelectionRestStatementData::Else(if_stmt, else_stmt) => {
+                // If statement with else
+                match &if_stmt.content {
+                    ast::StatementData::Compound(compound) => {
+                        self.writeln("{")?;
+                        self.indent_level += 1;
+                        self.translate_compound_statement(&compound.content)?;
+                        self.indent_level -= 1;
+                        self.writeln("}")?;
+                    }
+                    _ => {
+                        self.translate_statement(&if_stmt.content)?;
+                    }
+                }
+                
+                self.writeln("else")?;
+                match &else_stmt.content {
+                    ast::StatementData::Compound(compound) => {
+                        self.writeln("{")?;
+                        self.indent_level += 1;
+                        self.translate_compound_statement(&compound.content)?;
+                        self.indent_level -= 1;
+                        self.writeln("}")?;
+                    }
+                    _ => {
+                        self.translate_statement(&else_stmt.content)?;
+                    }
+                }
+            }
+        }
         
         Ok(())
     }
@@ -455,9 +493,10 @@ impl HLSLTranslator {
                             for_parts.push(String::new());
                         }
                     }
-                    ast::ForInitStatementData::Declaration(_decl) => {
-                        // This is a simplified handling - in practice you'd need to format the declaration properly
-                        for_parts.push("/* declaration */".to_string());
+                    ast::ForInitStatementData::Declaration(decl) => {
+                        // Handle declaration in for loop init
+                        let decl_str = self.translate_declaration_to_string(&decl.content)?;
+                        for_parts.push(decl_str);
                     }
                 }
                 
@@ -551,7 +590,7 @@ impl HLSLTranslator {
                 let left_str = self.translate_expression(&left.content)?;
                 let right_str = self.translate_expression(&right.content)?;
                 let op_str = self.translate_binary_op(&op.content);
-                Ok(format!("({} {} {})", left_str, op_str, right_str))
+                Ok(format!("{} {} {}", left_str, op_str, right_str))
             }
             ast::ExprData::Ternary(condition, true_expr, false_expr) => {
                 let cond_str = self.translate_expression(&condition.content)?;
@@ -606,6 +645,16 @@ impl HLSLTranslator {
                     ast::TypeSpecifierNonArrayData::Mat2 => "float2x2",
                     ast::TypeSpecifierNonArrayData::Mat3 => "float3x3",
                     ast::TypeSpecifierNonArrayData::Mat4 => "float4x4",
+                    ast::TypeSpecifierNonArrayData::Mat23 => "float2x3",
+                    ast::TypeSpecifierNonArrayData::Mat24 => "float2x4",
+                    ast::TypeSpecifierNonArrayData::Mat32 => "float3x2",
+                    ast::TypeSpecifierNonArrayData::Mat34 => "float3x4",
+                    ast::TypeSpecifierNonArrayData::Mat42 => "float4x2",
+                    ast::TypeSpecifierNonArrayData::Mat43 => "float4x3",
+                    ast::TypeSpecifierNonArrayData::Float => "float",
+                    ast::TypeSpecifierNonArrayData::Int => "int",
+                    ast::TypeSpecifierNonArrayData::UInt => "uint",
+                    ast::TypeSpecifierNonArrayData::Bool => "bool",
                     _ => "/* unknown constructor */",
                 }
             }
@@ -686,6 +735,35 @@ impl HLSLTranslator {
             ast::AssignmentOpData::And => "&=",
             ast::AssignmentOpData::Xor => "^=",
             ast::AssignmentOpData::Or => "|=",
+        }
+    }
+
+    /// Translate a declaration to a string (for use in for loop init)
+    fn translate_declaration_to_string(&mut self, decl: &ast::DeclarationData) -> Result<String, String> {
+        match decl {
+            ast::DeclarationData::InitDeclaratorList(init_list) => {
+                let mut result = String::new();
+                
+                // Get the base type
+                let base_type = self.glsl_type_to_hlsl(&init_list.content.head.ty.content.ty.content)?;
+                result.push_str(&base_type);
+                result.push(' ');
+                
+                // Handle the declarator
+                if let Some(name) = &init_list.content.head.name {
+                    result.push_str(&name.content.0);
+                    
+                    // Handle initializer if present
+                    if let Some(initializer) = &init_list.content.head.initializer {
+                        result.push_str(" = ");
+                        let init_str = self.translate_initializer(&initializer.content)?;
+                        result.push_str(&init_str);
+                    }
+                }
+                
+                Ok(result)
+            }
+            _ => Ok("/* unsupported declaration */".to_string()),
         }
     }
 
@@ -904,6 +982,10 @@ impl HLSLTranslator {
             .iter()
             .find(|mapping| mapping.glsl_var == glsl_var)
     }
+
+
+
+
 
     /// Clear the output buffer
     pub fn clear(&mut self) {
