@@ -36,7 +36,7 @@ A comprehensive type checking system for OpenGL Shading Language (GLSL) built in
 - **Function Name Mapping**: 
   - `fract()` → `frac()`, `mix()` → `lerp()`, `inversesqrt()` → `rsqrt()`
 - **Semantic Annotation**: Automatic generation of HLSL semantics
-- **Shader Type Detection**: Intelligent detection and appropriate main function generation
+- **Shader Type Detection**: Intelligent auto-detection or explicit specification for precise control
 - **Cross-Platform Compatibility**: Write once in GLSL, deploy to both OpenGL and DirectX
 
 ## Installation
@@ -110,9 +110,22 @@ fn main() {
     match ast::TranslationUnit::parse(glsl_code) {
         Ok(translation_unit) => {
             let mut translator = HLSLTranslator::new();
+            
+            // Option 1: Auto-detect shader type (existing functionality)
             match translator.translate_translation_unit(&translation_unit) {
                 Ok(hlsl_code) => {
-                    println!("HLSL Translation:");
+                    println!("HLSL Translation (auto-detected):");
+                    println!("{}", hlsl_code);
+                }
+                Err(error) => {
+                    println!("Translation error: {}", error);
+                }
+            }
+            
+            // Option 2: Specify shader type explicitly (new functionality)
+            match translator.translate_translation_unit_with_type(&translation_unit, ShaderType::Fragment) {
+                Ok(hlsl_code) => {
+                    println!("HLSL Translation (explicit fragment shader):");
                     println!("{}", hlsl_code);
                 }
                 Err(error) => {
@@ -329,10 +342,13 @@ Main type checking engine:
 #### `HLSLTranslator` ⭐ **NEW**
 HLSL translation engine:
 - `new()` - Create a new HLSL translator
-- `translate_translation_unit(ast)` - Translate GLSL AST to HLSL code
+- `translate_translation_unit(ast)` - Translate GLSL AST to HLSL code (auto-detects shader type)
+- `translate_translation_unit_with_type(ast, shader_type)` - Translate GLSL AST to HLSL code with explicit shader type
 - `map_function_name(glsl_name)` - Map GLSL function to HLSL equivalent
 - `map_builtin_variable(glsl_var)` - Map GLSL built-in to HLSL semantic
 - Returns `Result<String, String>` with translated HLSL code or error
+
+**Shader Types**: `ShaderType::Vertex`, `ShaderType::Fragment`, `ShaderType::Compute`, `ShaderType::Unknown`
 
 #### `SymbolTable`
 Manages variable and function scopes:
