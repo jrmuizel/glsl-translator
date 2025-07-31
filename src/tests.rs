@@ -699,11 +699,11 @@ mod hlsl_translation_tests {
     #[test]
     fn test_interpolation_functions() {
         let glsl_code = r"
-            in vec4 vertexColor;
+            vec4 vertexColor;
             void main() {
-                vec4 centroid = interpolateAtCentroid(vertexColor);
-                vec4 sample = interpolateAtSample(vertexColor, 2);
-                vec4 offset = interpolateAtOffset(vertexColor, vec2(0.1, 0.1));
+                vec4 result1 = interpolateAtCentroid(vertexColor);
+                vec4 result2 = interpolateAtSample(vertexColor, 2);
+                vec4 result3 = interpolateAtOffset(vertexColor, vec2(0.1, 0.1));
             }
         ";
         

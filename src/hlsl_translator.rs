@@ -414,7 +414,7 @@ impl HLSLTranslator {
         let if_line = format!("if ({})", condition);
         self.writeln(&if_line)?;
         
-        // Simplified handling - just translate the statements without worrying about exact structure
+        // Simplified handling - just output placeholder for now until we understand the AST structure
         self.writeln("{")?;
         self.indent_level += 1;
         self.writeln("// if statement body")?;
@@ -455,9 +455,10 @@ impl HLSLTranslator {
                             for_parts.push(String::new());
                         }
                     }
-                    ast::ForInitStatementData::Declaration(_decl) => {
-                        // This is a simplified handling - in practice you'd need to format the declaration properly
-                        for_parts.push("/* declaration */".to_string());
+                    ast::ForInitStatementData::Declaration(decl) => {
+                        // Format the declaration properly for for loop
+                        let decl_str = self.format_declaration_for_for_loop(&decl.content)?;
+                        for_parts.push(decl_str);
                     }
                 }
                 
@@ -603,9 +604,19 @@ impl HLSLTranslator {
                     ast::TypeSpecifierNonArrayData::Vec2 => "float2",
                     ast::TypeSpecifierNonArrayData::Vec3 => "float3",
                     ast::TypeSpecifierNonArrayData::Vec4 => "float4",
+                    ast::TypeSpecifierNonArrayData::Float => "float",
+                    ast::TypeSpecifierNonArrayData::Int => "int",
+                    ast::TypeSpecifierNonArrayData::UInt => "uint",
+                    ast::TypeSpecifierNonArrayData::Bool => "bool",
                     ast::TypeSpecifierNonArrayData::Mat2 => "float2x2",
                     ast::TypeSpecifierNonArrayData::Mat3 => "float3x3",
                     ast::TypeSpecifierNonArrayData::Mat4 => "float4x4",
+                    ast::TypeSpecifierNonArrayData::Mat23 => "float2x3",
+                    ast::TypeSpecifierNonArrayData::Mat24 => "float2x4",
+                    ast::TypeSpecifierNonArrayData::Mat32 => "float3x2",
+                    ast::TypeSpecifierNonArrayData::Mat34 => "float3x4",
+                    ast::TypeSpecifierNonArrayData::Mat42 => "float4x2",
+                    ast::TypeSpecifierNonArrayData::Mat43 => "float4x3",
                     _ => "/* unknown constructor */",
                 }
             }
@@ -785,6 +796,58 @@ impl HLSLTranslator {
         
         self.writeln(&decl_line)?;
         Ok(())
+    }
+
+    /// Format a declaration for use in for loop initialization (returns string instead of writing to output)
+    fn format_declaration_for_for_loop(&mut self, decl: &ast::DeclarationData) -> Result<String, String> {
+        match decl {
+            ast::DeclarationData::InitDeclaratorList(init_list) => {
+                // Get the base type
+                let base_type = self.glsl_type_to_hlsl(&init_list.head.ty.content.ty.content)?;
+                
+                // Format the declaration
+                let mut decl_line = String::new();
+                decl_line.push_str(&base_type);
+                decl_line.push(' ');
+                
+                // Handle the declarator(s)
+                let mut declarations = Vec::new();
+                
+                // First declarator
+                if let Some(name) = &init_list.head.name {
+                    let mut var_decl = name.content.0.to_string();
+                    
+                    // Handle initializer
+                    if let Some(initializer) = &init_list.head.initializer {
+                        let init_expr = self.translate_initializer(&initializer.content)?;
+                        var_decl.push_str(&format!(" = {}", init_expr));
+                    }
+                    
+                    declarations.push(var_decl);
+                }
+                
+                // Additional declarators (though rare in for loops)
+                for declarator in &init_list.tail {
+                    let mut var_decl = declarator.content.ident.content.ident.content.0.to_string();
+                    
+                    // Handle initializer for additional declarators
+                    if let Some(initializer) = &declarator.content.initializer {
+                        let init_expr = self.translate_initializer(&initializer.content)?;
+                        var_decl.push_str(&format!(" = {}", init_expr));
+                    }
+                    
+                    declarations.push(var_decl);
+                }
+                
+                decl_line.push_str(&declarations.join(", "));
+                
+                Ok(decl_line)
+            }
+            _ => {
+                // For other declaration types, use a placeholder
+                Ok("/* unsupported declaration type */".to_string())
+            }
+        }
     }
 
     /// Translate type qualifiers
