@@ -65,6 +65,25 @@ fn main() {
             }
         ",
         ),
+        (
+            "Enhanced vector and matrix operations",
+            r"
+            void main() {
+                vec3 pos = vec3(1.0, 2.0, 3.0);
+                float x = pos.x;
+                vec2 xy = pos.xy;
+                mat4 transform = mat4(1.0);
+                gl_Position = transform * vec4(pos, 1.0);
+                
+                // Ternary operator
+                float sign = (x > 0.0) ? 1.0 : -1.0;
+                
+                // Unary operators
+                float negX = -x;
+                bool isPositive = !(x < 0.0);
+            }
+        ",
+        ),
     ];
 
     for (name, glsl_code) in test_cases {
@@ -113,13 +132,21 @@ fn main() {
         println!("{}", "=".repeat(50));
     }
 
-    println!("\nType Checker Features Demonstrated:");
-    println!("• Basic GLSL type system (float, int, bool, vec3, vec4, etc.)");
-    println!("• Variable declaration and initialization checking");
-    println!("• Function definition and call validation");
-    println!("• Binary operator type checking");
-    println!("• Built-in function support (vec3, vec4, dot, normalize, etc.)");
-    println!("• Type compatibility and implicit conversion rules");
-    println!("• Symbol table with scoping support");
-    println!("• Comprehensive error reporting");
+    println!("\nEnhanced Type Checker Features Demonstrated:");
+    println!("✓ Comprehensive GLSL type system (scalars, vectors, matrices, samplers)");
+    println!("✓ GLSL built-in variables (gl_Position, gl_FragColor, etc.)");
+    println!("✓ Enhanced function call validation with argument type checking");
+    println!("✓ Constructor validation for vectors and matrices");
+    println!("✓ Vector swizzling operations support");
+    println!("✓ Unary and postfix operators (++, --, !, unary -, etc.)");
+    println!("✓ Ternary conditional operator support");
+    println!("✓ Array indexing and field access validation");
+    println!("✓ Control flow statement support (if, for, while, etc.)");
+    println!("✓ Return statement type checking");
+    println!("✓ Advanced binary operator type checking with promotion");
+    println!("✓ Extended matrix types (mat2x3, mat3x4, dmat2, etc.)");
+    println!("✓ Sampler types (sampler2D, samplerCube, shadow samplers, etc.)");
+    println!("✓ Improved struct and array type handling");
+    println!("✓ Symbol table with proper scoping support");
+    println!("✓ Comprehensive error reporting with detailed messages");
 }
