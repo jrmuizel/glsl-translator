@@ -244,19 +244,10 @@ impl HLSLTranslator {
         });
     }
 
-    /// Translate a GLSL translation unit to HLSL
-    pub fn translate_translation_unit(&mut self, unit: &ast::TranslationUnit) -> Result<String, String> {
-        self.output.clear();
-        self.indent_level = 0;
-
-        // Detect shader type from function names and built-ins
-        self.detect_shader_type(unit);
-
-        for external_decl in &unit.0 {
-            self.translate_external_declaration(external_decl)?;
-        }
-
-        Ok(self.output.clone())
+    /// Translate a GLSL translation unit to HLSL with explicit shader type requirement
+    /// Note: This method requires an explicit shader type. Use translate_translation_unit_with_type instead.
+    pub fn translate_translation_unit(&mut self, _unit: &ast::TranslationUnit) -> Result<String, String> {
+        return Err("Shader type auto-detection has been removed. Please use translate_translation_unit_with_type() and specify an explicit shader type.".to_string());
     }
 
     /// Translate a GLSL translation unit to HLSL with a specified shader type
@@ -274,20 +265,7 @@ impl HLSLTranslator {
         Ok(self.output.clone())
     }
 
-    /// Detect the type of shader based on the AST content
-    fn detect_shader_type(&mut self, unit: &ast::TranslationUnit) {
-        // Simple heuristic: look for main function and typical variables
-        for external_decl in &unit.0 {
-            if let ast::ExternalDeclarationData::FunctionDefinition(func_def) = &external_decl.content {
-                let func_name = &func_def.content.prototype.content.name.content.0;
-                if func_name == "main" {
-                    // Check the function body for shader-specific built-ins
-                    // This is a simplified detection - in practice you might need more sophisticated logic
-                    self.current_shader_type = ShaderType::Fragment; // Default assumption
-                }
-            }
-        }
-    }
+
 
     /// Translate an external declaration
     fn translate_external_declaration(&mut self, decl: &ast::Node<ast::ExternalDeclarationData>) -> Result<(), String> {

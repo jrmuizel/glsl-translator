@@ -16,7 +16,8 @@ mod stress_tests {
         match ast::TranslationUnit::parse(glsl_code) {
             Ok(translation_unit) => {
                 let mut translator = HLSLTranslator::new();
-                match translator.translate_translation_unit(&translation_unit) {
+                // Default to fragment shader for stress tests
+                match translator.translate_translation_unit_with_type(&translation_unit, ShaderType::Fragment) {
                     Ok(hlsl_code) => {
                         if should_succeed {
                             println!("✓ Translation succeeded");

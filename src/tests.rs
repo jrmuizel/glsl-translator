@@ -483,11 +483,16 @@ mod hlsl_translation_tests {
 
     /// Helper function to test GLSL to HLSL translation
     fn test_glsl_to_hlsl(glsl_code: &str, expected_hlsl_parts: &[&str]) -> String {
+        test_glsl_to_hlsl_with_type(glsl_code, expected_hlsl_parts, ShaderType::Fragment)
+    }
+
+    /// Helper function to test GLSL to HLSL translation with specific shader type
+    fn test_glsl_to_hlsl_with_type(glsl_code: &str, expected_hlsl_parts: &[&str], shader_type: ShaderType) -> String {
         let translation_unit = ast::TranslationUnit::parse(glsl_code)
             .expect("GLSL code should parse successfully");
         
         let mut translator = HLSLTranslator::new();
-        let hlsl_result = translator.translate_translation_unit(&translation_unit)
+        let hlsl_result = translator.translate_translation_unit_with_type(&translation_unit, shader_type)
             .expect("Translation should succeed");
         
         for expected_part in expected_hlsl_parts {
@@ -612,7 +617,7 @@ mod hlsl_translation_tests {
         
         // Note: The current implementation might not fully handle built-in variable translation
         // but we can test that the types are correctly mapped
-        let result = test_glsl_to_hlsl(glsl_code, &["float4 main() : SV_Position"]);
+        let result = test_glsl_to_hlsl_with_type(glsl_code, &["float4 main() : SV_Position"], ShaderType::Vertex);
         
         // The built-in variables should be handled specially in a real implementation
         println!("Vertex shader result: {}", result);
@@ -935,7 +940,7 @@ mod hlsl_translation_tests {
         match translation_unit {
             Ok(ast) => {
                 let mut translator = HLSLTranslator::new();
-                let result = translator.translate_translation_unit(&ast);
+                let result = translator.translate_translation_unit_with_type(&ast, ShaderType::Fragment);
                 // Should either succeed or fail gracefully
                 match result {
                     Ok(hlsl) => {
@@ -951,6 +956,22 @@ mod hlsl_translation_tests {
             Err(_) => {
                 // Some edge cases might not parse, which is acceptable
                 println!("Edge case did not parse (acceptable)");
+            }
+        }
+    }
+
+    #[test]
+    fn test_auto_detection_removal() {
+        let glsl_code = "void main() { float x = 1.0; }";
+        let translation_unit = ast::TranslationUnit::parse(glsl_code)
+            .expect("GLSL code should parse successfully");
+        
+        let mut translator = HLSLTranslator::new();
+        match translator.translate_translation_unit(&translation_unit) {
+            Ok(_) => panic!("Auto-detection should have failed!"),
+            Err(error) => {
+                assert!(error.contains("auto-detection has been removed"));
+                assert!(error.contains("translate_translation_unit_with_type"));
             }
         }
     }
